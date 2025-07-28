@@ -1,0 +1,22 @@
+[project]
+name = "madrl-lib"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12.0"
+dependencies = [
+    "cloudpickle>=3.1.1",
+    "importlib-metadata>=8.7.0",
+    "pytest>=8.4.1",
+    "torch==2.5.0+cu124",
+    "torchvision==0.20.0+cu124",
+]
+
+[tool.uv.sources]
+torch = { index = "torch-cuda" }
+torchvision = { index = "torch-cuda" }
+
+[[tool.uv.index]]
+name = "torch-cuda"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true

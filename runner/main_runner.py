@@ -13,8 +13,8 @@ class UserEnvRunner(BaseRunner):
     def run(
         self,
     ):
-        self.warmup()
 
+        self.warmup()
         episodes = (
             int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
         )

@@ -1,23 +1,24 @@
 import os
 import sys
 
-sys.path.append(os.path.abspath("../../"))
 from utils.buffer import ReplayBuffer
+
+# sys.path.append(os.path.abspath("../../"))
 
 
 class BaseRunner(object):
     """MARLアルゴリズムを訓練するためのベースクラス"""
 
     def __init__(self, config):
-        self.args = config["args"]
+        self.all_args = config["args"]
         self.envs = config["envs"]
 
-        self.share_observation = self.args.share_observation
-        self.n_rollout_threads = self.args.n_rollout_threads
-        self.num_agents = self.args.num_agents
+        self.share_observation = self.all_args.share_observation
+        self.n_rollout_threads = self.all_args.n_rollout_threads
+        self.num_agents = self.all_args.num_agents
 
         # parameters
-        self.algorithm_name = self.args.algorithm_name
+        self.algorithm_name = self.all_args.algorithm_name
         self.num_env_steps = self.all_args.num_env_steps
         self.episode_length = self.all_args.episode_length
 
@@ -33,7 +34,7 @@ class BaseRunner(object):
 
         # buffer
         self.buffer = ReplayBuffer(
-            args=self.args,
+            args=self.all_args,
             num_agents=self.num_agents,
             obs_space=obs_space,
             share_obs_space=share_obs_space,

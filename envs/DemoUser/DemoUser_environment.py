@@ -1,7 +1,8 @@
 import numpy as np
+import torch
 
 
-class MultiAgentEnv:
+class DemoUserMultiAgentEnv:
     def __init__(
         self,
         world,
@@ -16,24 +17,31 @@ class MultiAgentEnv:
     ):
         self.world = world
         self.num_agents = len(world.agents)
+        self.world_length = self.world.world_length
+        self.current_step = 0
 
         self.reset_callback = reset_callback
+        self.reward_callback = reward_callback
         self.observation_callback = observation_callback
 
         self.observation_space = []
         self.share_observation_space = []
         self.action_space = []
 
+        self.shared_reward = True
+
         self.observation_space = [
-            [-1 for x in range(self.num_agents)] + [-1, -1] * self.num_agents
+            [-1 for x in range(self.num_agents)] + [-1, -1, -1, -1] * self.num_agents
             for _ in range(self.num_agents)
         ]
         self.share_observation_space = [
-            ([-1 for x in range(self.num_agents)] + [-1, -1] * self.num_agents)
+            ([-1 for x in range(self.num_agents)] + [-1, -1, -1, -1] * self.num_agents)
             * self.num_agents
             for _ in range(self.num_agents)
         ]
-        self.action_space = [[-1] for _ in range(self.num_agents)]
+        self.action_space = [
+            [-1 for _ in range(5)] for _ in range(self.num_agents)
+        ]  # 縦・横・とどまる
 
     def seed(self, seed=None):
         if seed is None:
@@ -59,8 +67,49 @@ class MultiAgentEnv:
             obs_n.append(obs_i)
         return obs_n
 
-    def step(self, actions):
-        pass
+    def step(self, actions_n):
+        self.current_step += 1
+        obs_n = []
+        reward_n = []
+        done_n = []
+        self.agents = self.world.agents
+        # set action of each agent
+        for i, agent in enumerate(self.agents):
+            self._set_action(
+                action=torch.argmax(torch.tensor(actions_n[i])).item(),
+                agent=agent,
+                action_space=self.action_space[i],
+            )
+        # advance world state
+        self.world.step()
+        # record observation for each agent
+        for i, agent in enumerate(self.agents):
+            obs_n.append(
+                np.concatenate(
+                    [
+                        np.array([1 if j == i else 0 for j in range(self.num_agents)]),
+                        self._get_obs(agent),
+                    ]
+                )
+            )
+            reward_n.append(self._get_reward(agent))
+            done_n.append(self._get_done(agent))
+        reward = np.sum(reward_n)
+        if self.shared_reward:
+            reward_n = [[reward]] * self.num_agents
+        return obs_n, reward_n, done_n
+
+    # set env action for a particular agent
+    def _set_action(self, action, agent, action_space):
+        agent.action.move = np.zeros(2)
+        if action == 0:
+            agent.action.move[0] = -1
+        elif action == 1:
+            agent.action.move[0] = 1
+        elif action == 2:
+            agent.action.move[1] = -1
+        elif action == 3:
+            agent.action.move[1] = 1
 
     def _get_info(self, agent):
         pass
@@ -69,7 +118,10 @@ class MultiAgentEnv:
         return self.observation_callback(agent, self.world)
 
     def _get_done(self, agent):
-        pass
+        if self.current_step >= self.world_length:
+            return True
+        else:
+            return False
 
     def _get_reward(self, agent):
-        pass
+        return self.reward_callback(agent, self.world)

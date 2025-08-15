@@ -14,7 +14,7 @@ def get_config():
         help="シード値",
     )
     parser.add_argument(
-        "--n_rollout_threads",
+        "--num_rollout_threads",
         type=int,
         default=32,
         help="Number of parallel envs for training rollouts",
@@ -31,6 +31,7 @@ def get_config():
             "HAPPO",
             "VDN",
             "MAT",
+            "MAT_DEC",
         ],
         default="MAT",
         help="アルゴリズム名の指定",
@@ -38,7 +39,7 @@ def get_config():
     parser.add_argument(
         "--episode_length",
         type=int,
-        default=30,
+        default=50,
         help="エピソードの長さ",
     )
     parser.add_argument(
@@ -59,4 +60,183 @@ def get_config():
         default=10e6,
         help="訓練するステップ数",
     )
+
+    # env parameters
+    parser.add_argument(
+        "--env_name",
+        type=str,
+        default="DemoUser",
+        choices=["DemoUser"],
+        help="環境名の指定",
+    )
+
+    # network parameters
+    parser.add_argument(
+        "--use_centralized_V",
+        action="store_false",
+        default=True,
+        help="Whether to use centralized V function",
+    )
+    parser.add_argument(
+        "--hidden_size",
+        type=int,
+        default=64,
+        help="Dimension of hidden layers for actor/critic networks",
+    )
+    parser.add_argument(
+        "--use_popart",
+        action="store_true",
+        default=False,
+        help="by default False, use PopArt to normalize rewards.",
+    )
+    parser.add_argument(
+        "--use_valuenorm",
+        action="store_false",
+        default=True,
+        help="by default True, use running mean and std to normalize rewards.",
+    )
+
+    # recurrent parameters
+    parser.add_argument(
+        "--recurrent_N",
+        type=int,
+        default=1,
+        help="The number of recurrent layers.",
+    )
+    parser.add_argument(
+        "--use_recurrent_policy",
+        action="store_false",
+        default=True,
+        help="use a recurrent policy",
+    )
+
+    # optimizer parameters
+    parser.add_argument(
+        "--lr",
+        type=float,
+        default=5e-4,
+        help="learning rate (default: 5e-4)",
+    )
+    parser.add_argument(
+        "--opti_eps",
+        type=float,
+        default=1e-5,
+        help="RMSprop optimizer epsilon (default: 1e-5)",
+    )
+    parser.add_argument(
+        "--weight_decay",
+        type=float,
+        default=0,
+    )
+
+    # ppo parameters
+    parser.add_argument(
+        "--ppo_epoch",
+        type=int,
+        default=15,
+        help="number of ppo epochs (default: 15)",
+    )
+    parser.add_argument(
+        "--use_clipped_value_loss",
+        action="store_false",
+        default=True,
+        help="by default, clip loss value. If set, do not clip loss value.",
+    )
+    parser.add_argument(
+        "--clip_param",
+        type=float,
+        default=0.2,
+        help="ppo clip parameter (default: 0.2)",
+    )
+    parser.add_argument(
+        "--num_mini_batch",
+        type=int,
+        default=1,
+        help="number of batches for ppo (default: 1)",
+    )
+    parser.add_argument(
+        "--entropy_coef",
+        type=float,
+        default=0.01,
+        help="entropy term coefficient (default: 0.01)",
+    )
+    parser.add_argument(
+        "--value_loss_coef",
+        type=float,
+        default=1,
+        help="value loss coefficient (default: 0.5)",
+    )
+    parser.add_argument(
+        "--use_max_grad_norm",
+        action="store_false",
+        default=True,
+        help="by default, use max norm of gradients. If set, do not use.",
+    )
+    parser.add_argument(
+        "--max_grad_norm",
+        type=float,
+        default=10.0,
+        help="max norm of gradients (default: 0.5)",
+    )
+    parser.add_argument(
+        "--gamma",
+        type=float,
+        default=0.99,
+        help="discount factor for rewards (default: 0.99)",
+    )
+    parser.add_argument(
+        "--use_gae",
+        action="store_false",
+        default=True,
+        help="use generalized advantage estimation",
+    )
+    parser.add_argument(
+        "--gae_lambda",
+        type=float,
+        default=0.95,
+        help="gae lambda parameter (default: 0.95)",
+    )
+    parser.add_argument(
+        "--use_huber_loss",
+        action="store_false",
+        default=True,
+        help="by default, use huber loss. If set, do not use huber loss.",
+    )
+    parser.add_argument(
+        "--use_value_active_masks",
+        action="store_false",
+        default=True,
+        help="by default True, whether to mask useless data in value loss.",
+    )
+    parser.add_argument(
+        "--use_policy_active_masks",
+        action="store_false",
+        default=True,
+        help="by default True, whether to mask useless data in policy loss.",
+    )
+    parser.add_argument(
+        "--huber_delta",
+        type=float,
+        default=10.0,
+        help=" coefficience of huber loss.",
+    )
+    # run parameters
+    parser.add_argument(
+        "--use_linear_lr_decay",
+        action="store_true",
+        default=False,
+        help="use a linear schedule on the learning rate",
+    )
+    # log parameters
+    parser.add_argument(
+        "--log_interval",
+        type=int,
+        default=50,
+        help="time duration between contiunous twice log printing.",
+    )
+
+    # add for transformer
+    parser.add_argument("--num_block", type=int, default=1)
+    parser.add_argument("--num_embd", type=int, default=64)
+    parser.add_argument("--num_head", type=int, default=1)
     return parser

@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-from algorithms.utils.tranformer_act import (
+from algorithms.utils.transformer_act import (
     discrete_autoregreesive_act,
     discrete_parallel_act,
 )
@@ -214,7 +214,6 @@ class Decoder(nn.Module):
         num_embd,
         num_head,
         num_agents,
-        action_type="Discrete",
         dec_actor=False,
         share_actor=False,
     ):
@@ -224,13 +223,6 @@ class Decoder(nn.Module):
         self.num_embd = num_embd
         self.dec_actor = dec_actor
         self.share_actor = share_actor
-        self.action_type = action_type
-
-        if action_type != "Discrete":
-            log_std = torch.ones(action_dim)
-            # log_std = torch.zeros(action_dim)
-            self.log_std = torch.nn.Parameter(log_std)
-            # self.log_std = torch.nn.Parameter(torch.zeros(action_dim))
 
         if self.dec_actor:
             if self.share_actor:
@@ -260,19 +252,13 @@ class Decoder(nn.Module):
                     )
                     self.mlp.append(actor)
         else:
-            if action_type == "Discrete":
-                self.action_encoder = nn.Sequential(
-                    init_(
-                        nn.Linear(action_dim + 1, num_embd, bias=False),
-                        activate=True,
-                    ),
-                    nn.GELU(),
-                )
-            else:
-                self.action_encoder = nn.Sequential(
-                    init_(nn.Linear(action_dim, num_embd), activate=True),
-                    nn.GELU(),
-                )
+            self.action_encoder = nn.Sequential(
+                init_(
+                    nn.Linear(action_dim + 1, num_embd, bias=False),
+                    activate=True,
+                ),
+                nn.GELU(),
+            )
             self.obs_encoder = nn.Sequential(
                 nn.LayerNorm(obs_dim),
                 init_(nn.Linear(obs_dim, num_embd), activate=True),
@@ -295,11 +281,6 @@ class Decoder(nn.Module):
                 nn.LayerNorm(num_embd),
                 init_(nn.Linear(num_embd, action_dim)),
             )
-
-    def zero_std(self, device):
-        if self.action_type != "Discrete":
-            log_std = torch.zeros(self.action_dim).to(device)
-            self.log_std.data = log_std
 
     def forward(self, action, obs_rep, obs):
         # action: (batch, num_agents, action_dim), one-hot/logits?
@@ -334,7 +315,6 @@ class MultiAgentTransformer(nn.Module):
         num_embd,
         num_head,
         device=torch.device("cpu"),
-        action_type="Discrete",
         dec_actor=False,
         share_actor=False,
     ):
@@ -343,8 +323,8 @@ class MultiAgentTransformer(nn.Module):
         self.num_agents = num_agents
         self.action_dim = action_dim
         self.tpdv = dict(dtype=torch.float32, device=device)
-        self.action_type = action_type
         self.device = device
+        print(obs_dim)
 
         self.encoder = Encoder(
             obs_dim,
@@ -360,15 +340,10 @@ class MultiAgentTransformer(nn.Module):
             num_embd,
             num_head,
             num_agents,
-            self.action_type,
             dec_actor=dec_actor,
             share_actor=share_actor,
         )
         self.to(device)
-
-    def zero_std(self):
-        if self.action_type != "Discrete":
-            self.decoder.zero_std(self.device)
 
     def forward(self, obs, action, available_actions=None):
         # obs: (batch, num_agents, obs_dim)
@@ -383,19 +358,18 @@ class MultiAgentTransformer(nn.Module):
 
         batch_size = np.shape(obs)[0]
         v_loc, obs_rep = self.encoder(obs)
-        if self.action_type == "Discrete":
-            action = action.long()
-            action_log, entropy = discrete_parallel_act(
-                self.decoder,
-                obs_rep,
-                obs,
-                action,
-                batch_size,
-                self.num_agents,
-                self.action_dim,
-                self.tpdv,
-                available_actions,
-            )
+        action = action.long()
+        action_log, entropy = discrete_parallel_act(
+            decoder=self.decoder,
+            obs_rep=obs_rep,
+            obs=obs,
+            action=action,
+            batch_size=batch_size,
+            num_agents=self.num_agents,
+            action_dim=self.action_dim,
+            tpdv=self.tpdv,
+            available_actions=available_actions,
+        )
 
         return action_log, v_loc, entropy
 
@@ -412,19 +386,17 @@ class MultiAgentTransformer(nn.Module):
 
         batch_size = np.shape(obs)[0]
         v_loc, obs_rep = self.encoder(obs)
-        if self.action_type == "Discrete":
-            output_action, output_action_log = discrete_autoregreesive_act(
-                self.decoder,
-                obs_rep,
-                obs,
-                batch_size,
-                self.num_agents,
-                self.action_dim,
-                self.tpdv,
-                available_actions,
-                deterministic,
-            )
-
+        output_action, output_action_log = discrete_autoregreesive_act(
+            self.decoder,
+            obs_rep,
+            obs,
+            batch_size,
+            self.num_agents,
+            self.action_dim,
+            self.tpdv,
+            available_actions,
+            deterministic,
+        )
         return output_action, output_action_log, v_loc
 
     def get_values(self, obs):

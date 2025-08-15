@@ -1,9 +1,11 @@
-import os
-import sys
-
 from utils.buffer import ReplayBuffer
+import numpy as np
+import torch
 
-# sys.path.append(os.path.abspath("../../"))
+
+def _t2n(x):
+    """Convert torch tensor to a numpy array."""
+    return x.detach().cpu().numpy()
 
 
 class BaseRunner(object):
@@ -14,8 +16,12 @@ class BaseRunner(object):
         self.envs = config["envs"]
 
         self.share_observation = self.all_args.share_observation
-        self.n_rollout_threads = self.all_args.n_rollout_threads
+        self.num_rollout_threads = self.all_args.num_rollout_threads
         self.num_agents = self.all_args.num_agents
+        self.use_centralized_V = self.all_args.use_centralized_V
+        self.hidden_size = self.all_args.hidden_size
+        self.recurrent_N = self.all_args.recurrent_N
+        self.use_linear_lr_decay = self.all_args.use_linear_lr_decay
 
         # parameters
         self.algorithm_name = self.all_args.algorithm_name
@@ -27,6 +33,9 @@ class BaseRunner(object):
             0
         ]  # エージェント0のshared観測
         action_space = self.envs.action_space[0]  # 基本的には1次元
+
+        # interval
+        self.log_interval = self.all_args.log_interval
 
         print("obs_space", obs_space)
         print("share_obs_space", share_obs_space)
@@ -40,10 +49,62 @@ class BaseRunner(object):
             share_obs_space=share_obs_space,
             action_space=action_space,
         )
-        if self.algorithm_name == "MAT":
+        if self.algorithm_name == "MAT" or self.algorithm_name == "MAT_dec":
             # policy network
-            self.policy = None
+            from algorithms.mat.algorithm.transformer_policy import (
+                TransformerPolicy as Policy,
+            )
+            from algorithms.mat.mat_trainer import MATTrainer as Trainer
+
+            self.policy = Policy(
+                args=self.all_args,
+                obs_space=obs_space,
+                share_obs_space=share_obs_space,
+                action_space=action_space,
+            )
+            self.trainer = Trainer(
+                args=self.all_args,
+                policy=self.policy,
+            )
+            self.buffer = ReplayBuffer(
+                args=self.all_args,
+                num_agents=self.num_agents,
+                obs_space=obs_space,
+                share_obs_space=share_obs_space,
+                action_space=action_space,
+            )
 
     def warmup(self):
         """Collect warmup pre-training data."""
         raise NotImplementedError
+
+    def collect(self, step):
+        """Collect rollouts for training."""
+        raise NotImplementedError
+
+    @torch.no_grad()
+    def compute(self):
+        """Calculate returns for the collected data."""
+        self.trainer.prep_rollout()
+        if self.algorithm_name == "MAT" or self.algorithm_name == "MAT_DEC":
+            next_values = self.trainer.policy.get_values(
+                shared_obs=np.concatenate(self.buffer.share_obs[-1]),
+                obs=np.concatenate(self.buffer.obs[-1]),
+            )
+        else:
+            # TODO 後ほど実装
+            pass
+        next_values = np.array(np.split(_t2n(next_values), self.num_rollout_threads))
+        self.buffer.compute_returns(
+            next_values,
+            value_normalizer=self.trainer.value_normalizer,
+        )
+
+    def train(
+        self,
+    ):
+        """Train policies with data in the buffer."""
+        self.trainer.prep_training()
+        train_infos = self.trainer.train(self.buffer)
+        self.buffer.after_update()
+        return train_infos

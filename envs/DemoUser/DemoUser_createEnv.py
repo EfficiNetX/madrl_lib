@@ -3,10 +3,10 @@
 import importlib.util
 import os.path as osp
 
-from .DemoUser_environment import MultiAgentEnv
+from .DemoUser_environment import DemoUserMultiAgentEnv
 
 
-def UserEnv(args):
+def DemoUserEnv(args):
     """DemoUser_scenario.pyの内容を読み込んで、MultiAgentEnvを返す"""
     file_path = osp.join(osp.dirname(__file__), "DemoUser_scenario.py")
     module_name = "my_module_name"
@@ -17,7 +17,7 @@ def UserEnv(args):
 
     world = scenario.make_world(args)
 
-    env = MultiAgentEnv(
+    env = DemoUserMultiAgentEnv(
         world,
         reset_callback=scenario.reset_world,
         reward_callback=scenario.reward,

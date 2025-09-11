@@ -13,3 +13,10 @@ def check(input):
         return input
     else:
         raise TypeError("Input must be a NumPy array or a PyTorch Tensor")
+
+
+def init(module, weight_init, bias_init, gain=1):
+    weight_init(module.weight.data, gain=gain)
+    if module.bias is not None:
+        bias_init(module.bias.data)
+    return module

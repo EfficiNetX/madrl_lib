@@ -324,7 +324,6 @@ class MultiAgentTransformer(nn.Module):
         self.action_dim = action_dim
         self.tpdv = dict(dtype=torch.float32, device=device)
         self.device = device
-        print(obs_dim)
 
         self.encoder = Encoder(
             obs_dim,

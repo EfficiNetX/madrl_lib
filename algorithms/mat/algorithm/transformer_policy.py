@@ -65,6 +65,7 @@ class TransformerPolicy(nn.Module):
         obs,
         rnn_states_actor,
         rnn_states_critic,
+        masks,
         deterministic=False,
     ):
         shared_obs = shared_obs.reshape(
@@ -90,7 +91,13 @@ class TransformerPolicy(nn.Module):
         rnn_states_actor = check(rnn_states_actor).to(**self.tpdv)
         rnn_states_critic = check(rnn_states_critic).to(**self.tpdv)
 
-        return actions, action_log_probs, values, rnn_states_actor, rnn_states_critic
+        return (
+            actions,
+            action_log_probs,
+            values,
+            rnn_states_actor,
+            rnn_states_critic,
+        )
 
     def get_values(
         self,

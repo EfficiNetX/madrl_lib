@@ -31,29 +31,18 @@ def visualizer(
         [3, 5],
         [4, 5],
     ]
-    goals = None
+    goals = []
     for i in range(4):
-        if goals is None:
-            goals = obs_list[0][0][4 + i * 4 + 2 : 4 + i * 4 + 4]
-        else:
-            goals = np.concatenate(
-                (goals, obs_list[0][0][4 + i * 4 + 2 : 4 + i * 4 + 4])
-            )
-
+        goals = np.concatenate((goals, obs_list[0][i][6:8]))
     for t in range(len(obs_list) + 1):
         fig, ax = plt.subplots(figsize=(4, 4))
+        coors = []
         if t == 0:
             # 初期状態
             coors = np.array([0, 0, 0, 5, 5, 5, 5, 0])
         else:
-            coors = None
             for i in range(4):
-                if coors is None:
-                    coors = obs_list[t - 1][0][4 + i * 4 : 4 + i * 4 + 2]
-                else:
-                    coors = np.concatenate(
-                        (coors, obs_list[t - 1][0][4 + i * 4 : 4 + i * 4 + 2])
-                    )
+                coors = np.concatenate((coors, obs_list[t - 1][i][4:6]))
             # coors = obs_list[t - 1][0][4:]
         ax.set_xlim(-0.5, grid_size - 0.5)
         ax.set_ylim(-0.5, grid_size - 0.5)
@@ -81,7 +70,6 @@ def visualizer(
                 color="black",
                 markersize=20,
             )
-
         # 描画：エージェント
         for i in range(4):
             x, y = coors[i * 2], coors[i * 2 + 1]

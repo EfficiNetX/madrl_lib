@@ -2,7 +2,6 @@ from config import get_config
 import torch
 
 from envs.env_wrappers import SubprocVecEnv
-from runner.main_runner import UserEnvRunner as Runner
 
 
 def make_train_envs(args):
@@ -25,12 +24,19 @@ def main(args):
     # 訓練環境を初期化する
     envs = make_train_envs(args)
 
+    if args.algorithm_name == "IPPO":
+        args.use_centralized_V = False
     config = {
         "args": args,
         "envs": envs,
     }
 
     # runnerを作る
+    if args.share_policy:
+        from runner.shared.main_runner import UserEnvRunner as Runner
+    else:
+        from runner.separated.main_runner import UserEnvRunner as Runner
+
     runner = Runner(config)
     runner.run()
 

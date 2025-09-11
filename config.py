@@ -25,7 +25,7 @@ def get_config():
             "QMIX",
             "MADDPG",
             "IPPO",
-            "MAPPO",
+            "RMAPPO",
             "HASAC",
             "ISAC",
             "HAPPO",
@@ -72,6 +72,12 @@ def get_config():
 
     # network parameters
     parser.add_argument(
+        "--share_policy",
+        action="store_true",
+        default=False,
+        help="Whether to use the same policy for all agents",
+    )
+    parser.add_argument(
         "--use_centralized_V",
         action="store_false",
         default=True,
@@ -95,12 +101,42 @@ def get_config():
         default=True,
         help="by default True, use running mean and std to normalize rewards.",
     )
+    parser.add_argument(
+        "--use_orthogonal",
+        action="store_false",
+        default=True,
+        help="Whether to use Orthogonal initialization for weights and 0 initialization for biases",
+    )
+    parser.add_argument(
+        "--use_feature_normalization",
+        action="store_false",
+        default=True,
+        help="Whether to apply layernorm to the inputs",
+    )
+    parser.add_argument(
+        "--use_ReLU",
+        action="store_false",
+        default=True,
+        help="Whether to use ReLU",
+    )
+    parser.add_argument(
+        "--layer_N",
+        type=int,
+        default=1,
+        help="Number of layers for actor/critic networks",
+    )
+    parser.add_argument(
+        "--gain",
+        type=float,
+        default=0.01,
+        help="The gain # of last action layer",
+    )
 
     # recurrent parameters
     parser.add_argument(
         "--recurrent_N",
         type=int,
-        default=1,
+        default=3,
         help="The number of recurrent layers.",
     )
     parser.add_argument(
@@ -109,13 +145,31 @@ def get_config():
         default=True,
         help="use a recurrent policy",
     )
+    parser.add_argument(
+        "--use_naive_recurrent_policy",
+        action="store_true",
+        default=False,
+        help="Whether to use a naive recurrent policy",
+    )
+    parser.add_argument(
+        "--data_chunk_length",
+        type=int,
+        default=10,
+        help="Time length of chunks used to train a recurrent_policy",
+    )
 
     # optimizer parameters
     parser.add_argument(
         "--lr",
         type=float,
+        default=5e-5,
+        help="learning rate (default: 5e-5)",
+    )
+    parser.add_argument(
+        "--critic_lr",
+        type=float,
         default=5e-4,
-        help="learning rate (default: 5e-4)",
+        help="critic learning rate (default: 5e-4)",
     )
     parser.add_argument(
         "--opti_eps",

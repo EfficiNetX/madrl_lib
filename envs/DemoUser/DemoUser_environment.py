@@ -31,12 +31,11 @@ class DemoUserMultiAgentEnv:
         self.shared_reward = True
 
         self.observation_space = [
-            [-1 for x in range(self.num_agents)] + [-1, -1, -1, -1] * self.num_agents
+            [-1 for x in range(self.num_agents)] + [-1, -1, -1, -1]
             for _ in range(self.num_agents)
         ]
         self.share_observation_space = [
-            ([-1 for x in range(self.num_agents)] + [-1, -1, -1, -1] * self.num_agents)
-            * self.num_agents
+            ([-1 for x in range(self.num_agents)] + [-1, -1, -1, -1]) * self.num_agents
             for _ in range(self.num_agents)
         ]
         self.action_space = [

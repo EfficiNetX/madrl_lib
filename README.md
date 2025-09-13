@@ -2,7 +2,9 @@
 本ライブラリはpython uvを使って依存関係を管理しています。
 1. ```uv {仮想環境名（なんでもよい、venvなど）}```として仮想環境を作り, その中に入る
 2. ```uv sync```で必要なパッケージをインストール
-3. config.pyで各種設定を行った後, ```uv run main.py```で実行させることが出来る
+3. config.pyで各種設定を行った後, 
+    1. MATを実行したい場合は```uv run main.py --share_policy --algorithm_name MAT```
+    2. RMAPPOを実行したい場合は```uv run main.py --share_policy --algorithm_name RMAPPO```
 
 
 

@@ -3,7 +3,7 @@ import torch
 
 from runner.shared.base_runner import BaseRunner
 import time
-from logs.DemoUser_visualize import visualizer
+from envs.DemoUser.DemoUser_visualize import visualizer
 
 
 def _t2n(x):

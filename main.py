@@ -45,12 +45,14 @@ if __name__ == "__main__":
     parser = get_config()
 
     if torch.cuda.is_available():
+        print("We will use GPU to train the model.")
         parser.add_argument(
             "--device",
             type=str,
             default="cuda",
         )
     else:
+        print("We will use CPU to train the model.")
         parser.add_argument(
             "--device",
             type=str,

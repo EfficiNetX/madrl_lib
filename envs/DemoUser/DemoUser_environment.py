@@ -28,7 +28,8 @@ class DemoUserMultiAgentEnv:
         self.share_observation_space = []
         self.action_space = []
 
-        self.shared_reward = True
+        # 各エージェントが同じ報酬を受け取るかどうか
+        self.shared_reward = False
 
         self.observation_space = [
             [-1 for x in range(self.num_agents)] + [-1, -1, -1, -1]
@@ -96,6 +97,8 @@ class DemoUserMultiAgentEnv:
         reward = np.sum(reward_n)
         if self.shared_reward:
             reward_n = [[reward]] * self.num_agents
+        else:
+            reward_n = [[r] for r in reward_n]
         return obs_n, reward_n, done_n
 
     # set env action for a particular agent

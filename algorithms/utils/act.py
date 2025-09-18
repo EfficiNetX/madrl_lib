@@ -57,7 +57,13 @@ class ACTLayer(nn.Module):
 
         return action_probs
 
-    def evaluate_actions(self, x, action, available_actions=None, active_masks=None):
+    def evaluate_actions(
+        self,
+        x,
+        action,
+        available_actions=None,
+        active_masks=None,
+    ):
         """
         Compute log probability and entropy of given actions.
         :param x: (torch.Tensor) input to network.

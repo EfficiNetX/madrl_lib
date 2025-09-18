@@ -107,7 +107,7 @@ class BaseRunner(object):
         )
         for agent_id in torch.randperm(self.num_agents):
             self.trainer[agent_id].prep_training()
-            self.buffer[agent_id].update_factor(factor)
+            # self.buffer[agent_id].update_factor(factor)
             if self.all_args.algorithm_name == "HATRPO":
                 pass
             else:
@@ -128,7 +128,7 @@ class BaseRunner(object):
                     .reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
                 )
             train_info = self.trainer[agent_id].train(self.buffer[agent_id])
-            if self.all_args.algorithm_name != "HATRPO":
+            if self.all_args.algorithm_name == "HATRPO":
                 pass
             else:
                 new_actions_log_prob, _ = self.trainer[
@@ -141,7 +141,7 @@ class BaseRunner(object):
                     .rnn_states[0:1]
                     .reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
                     action=self.buffer[agent_id].actions.reshape(
-                        -1, self.buffer[agent_id].actions.shape[2:]
+                        -1, *self.buffer[agent_id].actions.shape[2:]
                     ),
                     masks=self.buffer[agent_id]
                     .masks[:-1]

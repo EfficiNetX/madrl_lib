@@ -193,7 +193,7 @@ class RMAPPOTrainer:
     ):
         if self._use_popart or self._use_valuenorm:
             advantages = buffer.returns[:-1] - self.value_normalizer.denormalize(
-                buffer.value_preds[:-1]
+                buffer.values_preds[:-1]
             )
         else:
             advantages = buffer.returns[:-1] - buffer.value_preds[:-1]

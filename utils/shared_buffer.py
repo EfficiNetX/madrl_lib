@@ -72,7 +72,7 @@ class ReplayBuffer(object):
         )
         self.rnn_states_critic = np.zeros_like(self.rnn_states)
 
-        self.value_preds = np.zeros(
+        self.values_preds = np.zeros(
             (
                 self.episode_length + 1,
                 self.num_rollout_threads,
@@ -81,7 +81,7 @@ class ReplayBuffer(object):
             ),
             dtype=np.float32,
         )
-        self.returns = np.zeros_like(self.value_preds)
+        self.returns = np.zeros_like(self.values_preds)
 
         self.advantages = np.zeros(
             (self.episode_length, self.num_rollout_threads, num_agents, 1),
@@ -141,7 +141,7 @@ class ReplayBuffer(object):
         rnn_states_critic,
         actions,
         action_log_probs,
-        value_preds,
+        values_preds,
         rewards,
         masks,
     ):
@@ -151,7 +151,7 @@ class ReplayBuffer(object):
         self.rnn_states_critic[self.step + 1] = rnn_states_critic.copy()
         self.actions[self.step] = actions.copy()
         self.action_log_probs[self.step] = action_log_probs.copy()
-        self.value_preds[self.step] = value_preds.copy()
+        self.values_preds[self.step] = values_preds.copy()
         self.rewards[self.step] = rewards.copy()
         self.masks[self.step + 1] = masks.copy()
 
@@ -162,14 +162,14 @@ class ReplayBuffer(object):
         next_value,
         value_normalizer=None,
     ):
-        self.value_preds[-1] = next_value
+        self.values_preds[-1] = next_value
         gae = 0
         for step in reversed(range(self.rewards.shape[0])):
             if self._use_popart or self._use_valuenorm:
                 if self.algorithm_name == "MAT":
-                    value_t = value_normalizer.denormalize(self.value_preds[step])
+                    value_t = value_normalizer.denormalize(self.values_preds[step])
                     value_t_next = value_normalizer.denormalize(
-                        self.value_preds[step + 1]
+                        self.values_preds[step + 1]
                     )
                     rewards_t = self.rewards[step]
 
@@ -188,16 +188,16 @@ class ReplayBuffer(object):
                     delta = (
                         self.rewards[step]
                         + self.gamma
-                        * value_normalizer.denormalize(self.value_preds[step + 1])
+                        * value_normalizer.denormalize(self.values_preds[step + 1])
                         * self.masks[step + 1]
-                        - value_normalizer.denormalize(self.value_preds[step])
+                        - value_normalizer.denormalize(self.values_preds[step])
                     )
                     gae = (
                         delta
                         + self.gamma * self.gae_lambda * self.masks[step + 1] * gae
                     )
                     self.returns[step] = gae + value_normalizer.denormalize(
-                        self.value_preds[step]
+                        self.values_preds[step]
                     )
 
     def after_update(self):
@@ -248,8 +248,8 @@ class ReplayBuffer(object):
                 -1, *self.available_actions.shape[2:]
             )
             available_actions = available_actions[rows, cols]
-        value_preds = self.value_preds[:-1].reshape(-1, *self.value_preds.shape[2:])
-        value_preds = value_preds[rows, cols]
+        values_preds = self.values_preds[:-1].reshape(-1, *self.values_preds.shape[2:])
+        values_preds = values_preds[rows, cols]
         returns = self.returns[:-1].reshape(-1, *self.returns.shape[2:])
         returns = returns[rows, cols]
         masks = self.masks[:-1].reshape(-1, *self.masks.shape[2:])
@@ -278,7 +278,9 @@ class ReplayBuffer(object):
                 )
             else:
                 available_actions_batch = None
-            value_preds_batch = value_preds[indices].reshape(-1, *value_preds.shape[2:])
+            values_preds_batch = values_preds[indices].reshape(
+                -1, *values_preds.shape[2:]
+            )
             return_batch = returns[indices].reshape(-1, *returns.shape[2:])
             masks_batch = masks[indices].reshape(-1, *masks.shape[2:])
             active_masks_batch = active_masks[indices].reshape(
@@ -298,7 +300,7 @@ class ReplayBuffer(object):
                 rnn_states_batch,
                 rnn_states_critic_batch,
                 actions_batch,
-                value_preds_batch,
+                values_preds_batch,
                 return_batch,
                 masks_batch,
                 active_masks_batch,
@@ -343,7 +345,7 @@ class ReplayBuffer(object):
         actions = _cast(self.actions)
         action_log_probs = _cast(self.action_log_probs)
         advantages = _cast(advantages)
-        value_preds = _cast(self.value_preds[:-1])
+        values_preds = _cast(self.values_preds[:-1])
         returns = _cast(self.returns[:-1])
         masks = _cast(self.masks[:-1])
         active_masks = _cast(self.active_masks[:-1])
@@ -370,7 +372,7 @@ class ReplayBuffer(object):
             rnn_states_critic_batch = []
             actions_batch = []
             available_actions_batch = []
-            value_preds_batch = []
+            values_preds_batch = []
             return_batch = []
             masks_batch = []
             active_masks_batch = []
@@ -388,7 +390,7 @@ class ReplayBuffer(object):
                     available_actions_batch.append(
                         available_actions[ind : ind + data_chunk_length]
                     )
-                value_preds_batch.append(value_preds[ind : ind + data_chunk_length])
+                values_preds_batch.append(values_preds[ind : ind + data_chunk_length])
                 return_batch.append(returns[ind : ind + data_chunk_length])
                 masks_batch.append(masks[ind : ind + data_chunk_length])
                 active_masks_batch.append(active_masks[ind : ind + data_chunk_length])
@@ -409,7 +411,7 @@ class ReplayBuffer(object):
             actions_batch = np.stack(actions_batch, axis=1)
             if self.available_actions is not None:
                 available_actions_batch = np.stack(available_actions_batch, axis=1)
-            value_preds_batch = np.stack(value_preds_batch, axis=1)
+            values_preds_batch = np.stack(values_preds_batch, axis=1)
             return_batch = np.stack(return_batch, axis=1)
             masks_batch = np.stack(masks_batch, axis=1)
             active_masks_batch = np.stack(active_masks_batch, axis=1)
@@ -432,7 +434,7 @@ class ReplayBuffer(object):
                 available_actions_batch = _flatten(L, N, available_actions_batch)
             else:
                 available_actions_batch = None
-            value_preds_batch = _flatten(L, N, value_preds_batch)
+            values_preds_batch = _flatten(L, N, values_preds_batch)
             return_batch = _flatten(L, N, return_batch)
             masks_batch = _flatten(L, N, masks_batch)
             active_masks_batch = _flatten(L, N, active_masks_batch)
@@ -445,7 +447,7 @@ class ReplayBuffer(object):
                 rnn_states_batch,
                 rnn_states_critic_batch,
                 actions_batch,
-                value_preds_batch,
+                values_preds_batch,
                 return_batch,
                 masks_batch,
                 active_masks_batch,

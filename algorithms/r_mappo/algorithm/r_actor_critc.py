@@ -108,12 +108,11 @@ class R_Actor(nn.Module):
             actor_features, rnn_states = self.rnn(actor_features, rnn_states, masks)
 
         action_log_probs, dist_entropy = self.act.evaluate_actions(
-            actor_features,
-            action,
-            available_actions,
+            x=actor_features,
+            action=action,
+            available_actions=available_actions,
             active_masks=active_masks if self._use_policy_active_masks else None,
         )
-
         return action_log_probs, dist_entropy
 
 

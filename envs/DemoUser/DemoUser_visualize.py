@@ -11,10 +11,9 @@ def visualizer(
     reward_list,
     action_list,
 ):
-
     agent_colors = ["red", "orange", "purple", "green"]
     grid_size = 6
-    dir_name = f"./envs/DemoUser/logs/episode_{episode}"
+    dir_name = f"./envs/DemoUser/logs/episode_{episode:04}"
     os.makedirs(dir_name, exist_ok=True)
     forbiddens = [
         [1, 1],

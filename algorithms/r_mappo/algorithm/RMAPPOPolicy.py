@@ -106,5 +106,4 @@ class RMAPPOPolicy:
             rnn_states=rnn_states_critic,
             masks=masks,
         )
-
         return values, action_log_probs, dist_entropy

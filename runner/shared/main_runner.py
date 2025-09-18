@@ -85,11 +85,14 @@ class UserEnvRunner(BaseRunner):
                     )
                 )
 
-                print(
-                    "average episode rewards is {}".format(
-                        np.mean(self.buffer.rewards) * self.episode_length
+                for agent_id in range(self.num_agents):
+                    print(
+                        "agent {}: average episode rewards is {}".format(
+                            agent_id,
+                            np.mean(self.buffer.rewards[:, :, agent_id, :])
+                            * self.episode_length,
+                        )
                     )
-                )
                 visualizer(
                     episode=episode,
                     obs_list=obs_list,

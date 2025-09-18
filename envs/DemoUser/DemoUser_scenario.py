@@ -67,14 +67,12 @@ class Scenario(BaseScenario):
     def reward(self, agent, world):
         # 報酬は各エージェントのゴールまでの距離（を負にしたもの）
         rew = 0
-        for agent_i in world.agents:
-            rew -= np.linalg.norm(
-                np.array(agent_i.state.coor) - np.array(agent_i.goal.coor)
-            )
+        # for agent_i in world.agents:
+        rew -= np.linalg.norm(np.array(agent.state.coor) - np.array(agent.goal.coor))
 
-            # rewardがスパースの場合
-            # if np.array_equal(agent_i.state.coor, agent_i.goal.coor):
-            #     rew += 1
+        # rewardがスパースの場合
+        # if np.array_equal(agent_i.state.coor, agent_i.goal.coor):
+        #     rew += 1
         return rew
 
     def observation(self, agent, world):

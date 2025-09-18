@@ -48,6 +48,14 @@ class UserEnvRunner(BaseRunner):
                     rnn_states,
                     rnn_states_critic,
                 )
+                # insert data into buffer
+                self.insert(data)
+
+                # visualizeのためにデータを保存
+                obs_list.append(obs[0])
+                reward_list.append(rewards[0])
+                action_list.append(actions[0])
+
             # compute return and update network
             self.compute()
             train_infos = self.train()
@@ -68,12 +76,14 @@ class UserEnvRunner(BaseRunner):
                         int(total_num_steps / (time.time() - start)),
                     )
                 )
-
-                print(
-                    "average episode rewards is {}".format(
-                        np.mean(self.buffer.rewards) * self.episode_length
+                for agent_id in range(self.num_agents):
+                    print(
+                        "agent {}: average episode rewards is {}".format(
+                            agent_id,
+                            np.mean(self.buffer[agent_id].rewards)
+                            * self.episode_length,
+                        )
                     )
-                )
                 visualizer(
                     episode=episode,
                     obs_list=obs_list,
@@ -171,8 +181,7 @@ class UserEnvRunner(BaseRunner):
             dtype=np.float32,
         )
         rnn_states_critic[dones] = np.zeros(
-            (dones.sum(), *self.buffer.rnn_states_critic.shape[3:]),
-            dtype=np.float32,
+            (dones.sum(), self.recurrent_N, self.hidden_size)
         )
         masks = np.ones(
             (self.num_rollout_threads, self.num_agents, 1), dtype=np.float32
@@ -190,11 +199,11 @@ class UserEnvRunner(BaseRunner):
             self.buffer[agent_id].insert(
                 share_obs=share_obs,
                 obs=np.array(list(obs[:, agent_id])),
-                rnn_states=rnn_states[:, agent_id],
+                rnn_states_actor=rnn_states[:, agent_id],
                 rnn_states_critic=rnn_states_critic[:, agent_id],
                 actions=actions[:, agent_id],
                 action_log_probs=action_log_probs[:, agent_id],
-                values=values[:, agent_id],
+                value_preds=values[:, agent_id],
                 rewards=rewards[:, agent_id],
-                masks=masks,
+                masks=masks[:, agent_id],
             )

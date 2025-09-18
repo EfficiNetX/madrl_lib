@@ -42,6 +42,7 @@
 - [x] [MAPPO (NeurIPS2022)](https://papers.neurips.cc/paper_files/paper/2022/file/9c1535a02f0ce079433344e14d910597-Paper-Datasets_and_Benchmarks.pdf)
 - [ ] [HASAC (ICLR2024)](https://openreview.net/pdf?id=tmqOhBC4a5)
 - [ ] [ISAC (ICML2018)](https://proceedings.mlr.press/v80/haarnoja18b/haarnoja18b.pdf)
-- [ ] [HAPPO & HATRPO (ICLR2022)](https://arxiv.org/pdf/2109.11251)
+- [ ] [HAPPO (ICLR2022)](https://arxiv.org/pdf/2109.11251)
+- [ ] [HATRPO (ICLR2022)](https://arxiv.org/pdf/2109.11251)
 - [ ] [VDN (AAMAS2017)](https://arxiv.org/abs/1706.05296)
 - [x] [MAT (NeurIPS2022)](https://proceedings.neurips.cc/paper_files/paper/2022/file/69413f87e5a34897cd010ca698097d0a-Supplemental-Conference.pdf)

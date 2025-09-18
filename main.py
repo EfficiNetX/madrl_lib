@@ -22,7 +22,7 @@ def make_train_envs(args):
 
 def main(args):
     # 訓練環境を初期化する
-    envs = make_train_envs(args)
+    envs: SubprocVecEnv = make_train_envs(args)
 
     if args.algorithm_name == "IPPO":
         args.use_centralized_V = False

@@ -38,7 +38,7 @@
 
 - [ ] [QMIX (ICML2018)](https://proceedings.mlr.press/v80/rashid18a/rashid18a.pdf)
 - [ ] [MADDPG (NeurIPS2017)](https://proceedings.neurips.cc/paper_files/paper/2017/file/68a9750337a418a86fe06c1991a1d64c-Paper.pdf)
-- [ ] [IPPO (2020)](https://arxiv.org/abs/2011.09533)
+- [x] [IPPO (2020)](https://arxiv.org/abs/2011.09533)
 - [x] [MAPPO (NeurIPS2022)](https://papers.neurips.cc/paper_files/paper/2022/file/9c1535a02f0ce079433344e14d910597-Paper-Datasets_and_Benchmarks.pdf)
 - [ ] [HASAC (ICLR2024)](https://openreview.net/pdf?id=tmqOhBC4a5)
 - [ ] [ISAC (ICML2018)](https://proceedings.mlr.press/v80/haarnoja18b/haarnoja18b.pdf)

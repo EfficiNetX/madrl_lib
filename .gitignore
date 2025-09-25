@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# DemoUser environment logs
+/envs/DemoUser/logs/

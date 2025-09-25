@@ -85,10 +85,9 @@ class SeparatedReplayBuffer(object):
         self.bad_masks = np.ones_like(self.masks)
         self.active_masks = np.ones_like(self.masks)
 
-        self.step = 0
+        self.factor = None
 
-    # def update_factor(self, factor):
-    #     self.factor = factor.copy()
+        self.step = 0
 
     def after_update(self):
         self.share_obs[0] = self.share_obs[-1].copy()
@@ -121,6 +120,9 @@ class SeparatedReplayBuffer(object):
                     self.returns[step] = gae + value_normalizer.denormalize(
                         self.values_preds[step]
                     )
+
+    def update_factor(self, factor):
+        self.factor = factor.copy()
 
     def insert(
         self,
@@ -177,8 +179,8 @@ class SeparatedReplayBuffer(object):
         returns = _cast(self.returns[:-1])
         masks = _cast(self.masks[:-1])
         active_masks = _cast(self.active_masks[:-1])
-        # if self.factor is not None:
-        #     factor = _cast(self.factor)
+        if self.factor is not None:
+            factor = _cast(self.factor)
         # rnn_states = _cast(self.rnn_states[:-1])
         # rnn_states_critic = _cast(self.rnn_states_critic[:-1])
         rnn_states = (
@@ -208,7 +210,7 @@ class SeparatedReplayBuffer(object):
             active_masks_batch = []
             old_action_log_probs_batch = []
             adv_targ = []
-            # factor_batch = []
+            factor_batch = []
             for index in indices:
                 ind = index * data_chunk_length
                 # size [T+1 N M Dim]-->[T N Dim]-->[N T Dim]-->[T*N,Dim]-->[L,Dim]
@@ -230,8 +232,8 @@ class SeparatedReplayBuffer(object):
                 # size [T+1 N Dim]-->[T N Dim]-->[T*N,Dim]-->[1,Dim]
                 rnn_states_batch.append(rnn_states[ind])
                 rnn_states_critic_batch.append(rnn_states_critic[ind])
-                # if self.factor is not None:
-                #     factor_batch.append(factor[ind : ind + data_chunk_length])
+                if self.factor is not None:
+                    factor_batch.append(factor[ind : ind + data_chunk_length])
             L, N = data_chunk_length, mini_batch_size
 
             # These are all from_numpys of size (N, L, Dim)
@@ -241,8 +243,8 @@ class SeparatedReplayBuffer(object):
             actions_batch = np.stack(actions_batch)
             # if self.available_actions is not None:
             #     available_actions_batch = np.stack(available_actions_batch)
-            # if self.factor is not None:
-            #     factor_batch = np.stack(factor_batch)
+            if self.factor is not None:
+                factor_batch = np.stack(factor_batch)
             value_preds_batch = np.stack(value_preds_batch)
             return_batch = np.stack(return_batch)
             masks_batch = np.stack(masks_batch)
@@ -266,31 +268,14 @@ class SeparatedReplayBuffer(object):
             #     available_actions_batch = _flatten(L, N, available_actions_batch)
             # else:
             available_actions_batch = None
-            # if self.factor is not None:
-            #     factor_batch = _flatten(L, N, factor_batch)
+            if self.factor is not None:
+                factor_batch = _flatten(L, N, factor_batch)
             value_preds_batch = _flatten(L, N, value_preds_batch)
             return_batch = _flatten(L, N, return_batch)
             masks_batch = _flatten(L, N, masks_batch)
             active_masks_batch = _flatten(L, N, active_masks_batch)
             old_action_log_probs_batch = _flatten(L, N, old_action_log_probs_batch)
             adv_targ = _flatten(L, N, adv_targ)
-            # if self.factor is not None:
-            #     yield (
-            #         share_obs_batch,
-            #         obs_batch,
-            #         rnn_states_batch,
-            #         rnn_states_critic_batch,
-            #         actions_batch,
-            #         value_preds_batch,
-            #         return_batch,
-            #         masks_batch,
-            #         active_masks_batch,
-            #         old_action_log_probs_batch,
-            #         adv_targ,
-            #         available_actions_batch,
-            #         factor_batch,
-            #     )
-            # else:
             yield (
                 share_obs_batch,
                 obs_batch,
@@ -304,4 +289,5 @@ class SeparatedReplayBuffer(object):
                 old_action_log_probs_batch,
                 adv_targ,
                 available_actions_batch,
+                factor_batch,
             )

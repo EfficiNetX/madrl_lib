@@ -4,8 +4,9 @@
 2. ```uv sync```で必要なパッケージをインストール
 3. config.pyで各種設定を行った後, 
     1. MATを実行したい場合は```uv run main.py --share_policy --algorithm_name MAT```
-    2. RMAPPOを実行したい場合は```uv run main.py --share_policy --algorithm_name RMAPPO```
+    2. RMAPPOを実行したい場合は```uv run main.py --share_policy --algorithm_name RMAPPO```. policyをシェアしたくない場合は```uv run main.py --algorithm_name RMAPPO```
     3. IPPOを実行したい場合は```uv run main.py --algorithm_name IPPO```
+    4. HAPPOを実行したい場合は```uv run main.py --algorithm_name HAPPO```
 
 
 

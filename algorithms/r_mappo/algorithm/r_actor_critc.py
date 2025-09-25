@@ -117,7 +117,7 @@ class R_Actor(nn.Module):
 
 
 class R_Critic(nn.Module):
-    def __init__(self, args, cent_obs_space):
+    def __init__(self, args, share_obs_space):
         super(R_Critic, self).__init__()
         self.hidden_size = args.hidden_size
         self._use_orthogonal = args.use_orthogonal
@@ -132,7 +132,7 @@ class R_Critic(nn.Module):
 
         base = MLPBase
 
-        self.cent_obs_dim = len(cent_obs_space)
+        self.cent_obs_dim = len(share_obs_space)
 
         self.base = base(
             args=args,

@@ -1,15 +1,11 @@
 import torch
-
 from algorithms.r_mappo.algorithm.r_actor_critc import R_Actor, R_Critic
 
 
-class RMAPPOPolicy:
+class HAPPO_Policy:
+
     def __init__(
-        self,
-        args,
-        obs_space,
-        share_obs_space,
-        action_space,
+        self, args, obs_space, share_obs_space, action_space, 
     ):
         self.args = args
         self.lr = args.lr
@@ -26,6 +22,12 @@ class RMAPPOPolicy:
             obs_space=self.obs_space,
             action_space=self.action_space,
         )
+
+        ######################################Please Note#########################################
+        #####   We create one critic for each agent, but they are trained with same data     #####
+        #####   and using same update setting. Therefore they have the same parameter,       #####
+        #####   you can regard them as the same critic.                                      #####
+        ##########################################################################################
         self.critic = R_Critic(
             args=args,
             share_obs_space=self.share_obs_space,
@@ -44,15 +46,6 @@ class RMAPPOPolicy:
             weight_decay=self.weight_decay,
         )
 
-    def get_values(
-        self,
-        shared_obs,
-        rnn_states_critic,
-        masks,
-    ):
-        values, _ = self.critic(shared_obs, rnn_states_critic, masks)
-        return values
-
     def get_actions(
         self,
         shared_obs,
@@ -61,7 +54,7 @@ class RMAPPOPolicy:
         rnn_states_critic,
         masks,
         available_actions=None,
-        deterministic=False,
+        deterministic=None,
     ):
         actions, action_log_probs, rnn_states_actor = self.actor(
             obs,
@@ -70,19 +63,20 @@ class RMAPPOPolicy:
             available_actions,
             deterministic,
         )
-
         values, rnn_states_critic = self.critic(
             shared_obs,
             rnn_states_critic,
             masks,
         )
-        return (
-            actions,
-            action_log_probs,
-            values,
-            rnn_states_actor,
+        return actions, action_log_probs, values, rnn_states_actor, rnn_states_critic
+
+    def get_values(self, shared_obs, rnn_states_critic, masks):
+        values, _ = self.critic(
+            shared_obs,
             rnn_states_critic,
+            masks,
         )
+        return values
 
     def evaluate_actions(
         self,

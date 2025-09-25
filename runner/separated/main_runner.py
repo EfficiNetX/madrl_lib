@@ -5,6 +5,7 @@ import torch
 
 from envs.DemoUser.DemoUser_visualize import visualizer
 import time
+import importlib
 
 
 def _t2n(x):
@@ -14,6 +15,12 @@ def _t2n(x):
 class UserEnvRunner(BaseRunner):
     def __init__(self, config):
         super().__init__(config)
+        # visualizerのimport
+        user_name = config["args"].user_name
+        visualizeClass = importlib.import_module(
+            f"envs.{user_name}.{user_name}_visualize"
+        )
+        self.visualizer = getattr(visualizeClass, "visualizer")
 
     def run(self):
         self.warmup()
@@ -23,6 +30,7 @@ class UserEnvRunner(BaseRunner):
             int(self.num_env_steps) // self.episode_length // self.num_rollout_threads
         )
         for episode in range(episodes):
+            print("episode ={}".format(episode))
             if self.use_linear_lr_decay:
                 self.trainer.policy.lr_decay(episode, episodes)
             obs_list, reward_list, action_list = [], [], []
@@ -67,7 +75,7 @@ class UserEnvRunner(BaseRunner):
                 print(
                     "Scenario {} Algo {} updates {}/{} episodes,"
                     " total num timesteps {}/{}, FPS {}.".format(
-                        self.all_args.env_name,
+                        self.all_args.user_name,
                         self.algorithm_name,
                         episode,
                         episodes,
@@ -84,6 +92,7 @@ class UserEnvRunner(BaseRunner):
                             * self.episode_length,
                         )
                     )
+
                 visualizer(
                     episode=episode,
                     obs_list=obs_list,

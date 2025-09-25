@@ -454,4 +454,5 @@ class ReplayBuffer(object):
                 old_action_log_probs_batch,
                 adv_targ,
                 available_actions_batch,
+                None,
             )

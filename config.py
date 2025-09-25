@@ -63,10 +63,10 @@ def get_config():
 
     # env parameters
     parser.add_argument(
-        "--env_name",
+        "--user_name",
         type=str,
         default="DemoUser",
-        choices=["DemoUser"],
+        choices=["DemoUser", "LogisticsUser"],
         help="環境名の指定",
     )
 

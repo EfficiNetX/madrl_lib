@@ -1,12 +1,13 @@
 import torch
 from utils.valuenorm import ValueNorm
+from algorithms.utils.popart_hatrpo import PopArt
 import numpy as np
-import torch.nn as nn
 from algorithms.utils.util import check
+import torch.nn as nn
 from utils.util import get_grad_norm, mse_loss, huber_loss
 
 
-class RMAPPOTrainer:
+class HAPPOTrainer:
     def __init__(self, args, policy):
         self.args = args
         self.device = args.device
@@ -32,20 +33,74 @@ class RMAPPOTrainer:
         self._use_value_active_masks = args.use_value_active_masks
         self._use_policy_active_masks = args.use_policy_active_masks
 
-        assert (
-            self._use_popart and self._use_valuenorm
-        ) == False, "self._use_popart and self._use_valuenorm can not be set True simultaneously"
-
         if self._use_popart:
-            self.value_normalizer = self.policy.critic.v_out
+            self.value_normalizer = PopArt(1, device=self.device)
         elif self._use_valuenorm:
             self.value_normalizer = ValueNorm(1, device=self.device)
         else:
             self.value_normalizer = None
 
+    def cal_value_loss(
+        self, values, value_preds_batch, return_batch, active_masks_batch
+    ):
+        """
+        Calculate value function loss.
+        :param values: (torch.Tensor) value function predictions.
+        :param value_preds_batch: (torch.Tensor) "old" value  predictions from data batch (used for value clip loss)
+        :param return_batch: (torch.Tensor) reward to go returns.
+        :param active_masks_batch: (torch.Tensor) denotes if agent is active or dead at a given timesep.
+
+        :return value_loss: (torch.Tensor) value function loss.
+        """
+        if self._use_popart or self._use_valuenorm:
+            self.value_normalizer.update(return_batch)  # 元のコードでは忘れている
+            value_pred_clipped = value_preds_batch + (values - value_preds_batch).clamp(
+                -self.clip_param, self.clip_param
+            )
+            error_clipped = (
+                self.value_normalizer.normalize(return_batch) - value_pred_clipped
+            )
+            error_original = self.value_normalizer.normalize(return_batch) - values
+        else:
+            value_pred_clipped = value_preds_batch + (values - value_preds_batch).clamp(
+                -self.clip_param, self.clip_param
+            )
+            error_clipped = return_batch - value_pred_clipped
+            error_original = return_batch - values
+
+        if self._use_huber_loss:
+            value_loss_clipped = huber_loss(error_clipped, self.huber_delta)
+            value_loss_original = huber_loss(error_original, self.huber_delta)
+        else:
+            value_loss_clipped = mse_loss(error_clipped)
+            value_loss_original = mse_loss(error_original)
+
+        if self._use_clipped_value_loss:
+            value_loss = torch.max(value_loss_original, value_loss_clipped)
+        else:
+            value_loss = value_loss_original
+
+        if self._use_value_active_masks:
+            value_loss = (
+                value_loss * active_masks_batch
+            ).sum() / active_masks_batch.sum()
+        else:
+            value_loss = value_loss.mean()
+
+        return value_loss
+
     def ppo_update(self, sample, update_actor=True):
         """
         Update actor and critic networks.
+        :param sample: (Tuple) contains data batch with which to update networks.
+        :update_actor: (bool) whether to update actor network.
+
+        :return value_loss: (torch.Tensor) value function loss.
+        :return critic_grad_norm: (torch.Tensor) gradient norm from critic update.
+        ;return policy_loss: (torch.Tensor) actor(policy) loss value.
+        :return dist_entropy: (torch.Tensor) action entropies.
+        :return actor_grad_norm: (torch.Tensor) gradient norm from actor update.
+        :return imp_weights: (torch.Tensor) importance sampling weights.
         """
         (
             share_obs_batch,
@@ -60,7 +115,7 @@ class RMAPPOTrainer:
             old_action_log_probs_batch,
             adv_targ,
             available_actions_batch,
-            _,
+            factor_batch,
         ) = sample
 
         old_action_log_probs_batch = check(old_action_log_probs_batch).to(**self.tpdv)
@@ -68,6 +123,8 @@ class RMAPPOTrainer:
         value_preds_batch = check(value_preds_batch).to(**self.tpdv)
         return_batch = check(return_batch).to(**self.tpdv)
         active_masks_batch = check(active_masks_batch).to(**self.tpdv)
+
+        factor_batch = check(factor_batch).to(**self.tpdv)
 
         # Reshape to do in a single forward pass for all steps
         values, action_log_probs, dist_entropy = self.policy.evaluate_actions(
@@ -79,8 +136,13 @@ class RMAPPOTrainer:
             masks=masks_batch,
             available_actions=available_actions_batch,
         )
+
         # actor update
-        imp_weights = torch.exp(action_log_probs - old_action_log_probs_batch)
+        imp_weights = torch.prod(
+            torch.exp(action_log_probs - old_action_log_probs_batch),
+            dim=-1,
+            keepdim=True,
+        )
 
         surr1 = imp_weights * adv_targ
         surr2 = (
@@ -90,12 +152,12 @@ class RMAPPOTrainer:
 
         if self._use_policy_active_masks:
             policy_action_loss = (
-                -torch.sum(torch.min(surr1, surr2), dim=-1, keepdim=True)
+                -torch.sum(factor_batch * torch.min(surr1, surr2), dim=-1, keepdim=True)
                 * active_masks_batch
             ).sum() / active_masks_batch.sum()
         else:
             policy_action_loss = -torch.sum(
-                torch.min(surr1, surr2), dim=-1, keepdim=True
+                factor_batch * torch.min(surr1, surr2), dim=-1, keepdim=True
             ).mean()
 
         policy_loss = policy_action_loss
@@ -114,7 +176,6 @@ class RMAPPOTrainer:
 
         self.policy.actor_optimizer.step()
 
-        # critic update
         value_loss = self.cal_value_loss(
             values, value_preds_batch, return_batch, active_masks_batch
         )
@@ -141,63 +202,18 @@ class RMAPPOTrainer:
             imp_weights,
         )
 
-    def cal_value_loss(
-        self, values, value_preds_batch, return_batch, active_masks_batch
-    ):
-        """
-        Calculate value function loss.
-        :param values: (torch.Tensor) value function predictions.
-        :param value_preds_batch: (torch.Tensor) "old" value  predictions from data batch (used for value clip loss)
-        :param return_batch: (torch.Tensor) reward to go returns.
-        :param active_masks_batch: (torch.Tensor) denotes if agent is active or dead at a given timesep.
-
-        :return value_loss: (torch.Tensor) value function loss.
-        """
-        value_pred_clipped = value_preds_batch + (values - value_preds_batch).clamp(
-            -self.clip_param, self.clip_param
-        )
-        if self._use_popart or self._use_valuenorm:
-            self.value_normalizer.update(return_batch)
-            error_clipped = (
-                self.value_normalizer.normalize(return_batch) - value_pred_clipped
-            )
-            error_original = self.value_normalizer.normalize(return_batch) - values
-        else:
-            error_clipped = return_batch - value_pred_clipped
-            error_original = return_batch - values
-
-        if self._use_huber_loss:
-            value_loss_clipped = huber_loss(error_clipped, self.huber_delta)
-            value_loss_original = huber_loss(error_original, self.huber_delta)
-        else:
-            value_loss_clipped = mse_loss(error_clipped)
-            value_loss_original = mse_loss(error_original)
-
-        if self._use_clipped_value_loss:
-            value_loss = torch.max(value_loss_original, value_loss_clipped)
-        else:
-            value_loss = value_loss_original
-
-        if self._use_value_active_masks:
-            value_loss = (
-                value_loss * active_masks_batch
-            ).sum() / active_masks_batch.sum()
-        else:
-            value_loss = value_loss.mean()
-
-        return value_loss
-
     def train(
         self,
         buffer,
         update_actor=True,
     ):
-        if self._use_popart or self._use_valuenorm:
+        if self._use_popart:
             advantages = buffer.returns[:-1] - self.value_normalizer.denormalize(
-                buffer.values_preds[:-1]
+                buffer.value_preds[:-1]
             )
         else:
-            advantages = buffer.returns[:-1] - buffer.value_preds[:-1]
+            advantages = buffer.returns[:-1] - buffer.values_preds[:-1]
+
         advantages_copy = advantages.copy()
         advantages_copy[buffer.active_masks[:-1] == 0.0] = np.nan
         mean_advantages = np.nanmean(advantages_copy)
@@ -214,12 +230,20 @@ class RMAPPOTrainer:
         train_info["ratio"] = 0
 
         for _ in range(self.ppo_epoch):
-            data_generator = buffer.recurrent_generator(
-                advantages, self.num_mini_batch, self.data_chunk_length
-            )
+            if self._use_recurrent_policy:
+                data_generator = buffer.recurrent_generator(
+                    advantages, self.num_mini_batch, self.data_chunk_length
+                )
+            elif self._use_naive_recurrent:
+                data_generator = buffer.naive_recurrent_generator(
+                    advantages, self.num_mini_batch
+                )
+            else:
+                data_generator = buffer.feed_forward_generator(
+                    advantages, self.num_mini_batch
+                )
 
             for sample in data_generator:
-
                 (
                     value_loss,
                     critic_grad_norm,
@@ -227,7 +251,7 @@ class RMAPPOTrainer:
                     dist_entropy,
                     actor_grad_norm,
                     imp_weights,
-                ) = self.ppo_update(sample, update_actor)
+                ) = self.ppo_update(sample, update_actor=update_actor)
 
                 train_info["value_loss"] += value_loss.item()
                 train_info["policy_loss"] += policy_loss.item()
@@ -240,8 +264,6 @@ class RMAPPOTrainer:
 
         for k in train_info.keys():
             train_info[k] /= num_updates
-
-        return train_info
 
     def prep_training(self):
         self.policy.actor.train()

@@ -2,13 +2,16 @@ from config import get_config
 import torch
 
 from envs.env_wrappers import SubprocVecEnv
+import importlib
 
 
 def make_train_envs(args):
     def get_env_fn(rank):
         def init_env():
-            if args.env_name == "DemoUser":
-                from envs.DemoUser.DemoUser_createEnv import DemoUserEnv as UserEnv
+            createEnvClass = importlib.import_module(
+                f"envs.{args.user_name}.{args.user_name}_createEnv"
+            )
+            UserEnv = getattr(createEnvClass, f"{args.user_name}Env")
             env = UserEnv(args)
             env.seed(args.seed + rank)
             return env

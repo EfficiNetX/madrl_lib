@@ -31,7 +31,8 @@ class BaseRunner(object):
         self.log_interval = self.all_args.log_interval
 
         if self.algorithm_name == "HAPPO":
-            pass
+            from algorithms.happo.happo_trainer import HAPPOTrainer as Trainer
+            from algorithms.happo.happpo_pollicy import HAPPO_Policy as Policy
         elif self.algorithm_name == "HATRPO":
             pass
         else:
@@ -107,7 +108,7 @@ class BaseRunner(object):
         )
         for agent_id in torch.randperm(self.num_agents):
             self.trainer[agent_id].prep_training()
-            # self.buffer[agent_id].update_factor(factor)
+            self.buffer[agent_id].update_factor(factor) 
             if self.all_args.algorithm_name == "HATRPO":
                 pass
             else:

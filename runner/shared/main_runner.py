@@ -3,7 +3,8 @@ import torch
 
 from runner.shared.base_runner import BaseRunner
 import time
-from envs.DemoUser.DemoUser_visualize import visualizer
+
+import importlib
 
 
 def _t2n(x):
@@ -15,6 +16,13 @@ class UserEnvRunner(BaseRunner):
 
     def __init__(self, config):
         super().__init__(config)
+
+        # visualizerのimport
+        user_name = config["args"].user_name
+        visualizeClass = importlib.import_module(
+            f"envs.{user_name}.{user_name}_visualize"
+        )
+        self.visualizer = getattr(visualizeClass, "visualizer")
 
     def run(
         self,
@@ -75,7 +83,7 @@ class UserEnvRunner(BaseRunner):
                 print(
                     "Scenario {} Algo {} updates {}/{} episodes,"
                     " total num timesteps {}/{}, FPS {}.".format(
-                        self.all_args.env_name,
+                        self.all_args.user_name,
                         self.algorithm_name,
                         episode,
                         episodes,
@@ -93,7 +101,7 @@ class UserEnvRunner(BaseRunner):
                             * self.episode_length,
                         )
                     )
-                visualizer(
+                self.visualizer(
                     episode=episode,
                     obs_list=obs_list,
                     reward_list=reward_list,

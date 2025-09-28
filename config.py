@@ -293,4 +293,55 @@ def get_config():
     parser.add_argument("--num_block", type=int, default=1)
     parser.add_argument("--num_embd", type=int, default=64)
     parser.add_argument("--num_head", type=int, default=1)
+
+    # add for QMIX
+    parser.add_argument(
+        "--qmix_buffer_size",
+        type=int,
+        default=5000,
+        help="QMIX用: リプレイバッファの最大エピソード数",
+    )
+    parser.add_argument(
+        "--qmix_batch_size",
+        type=int,
+        default=32,
+        help="QMIX用: 学習時にサンプリングするエピソード数",
+    )
+    parser.add_argument(
+        "--qmix_target_update_interval",
+        type=int,
+        default=200,
+        help="QMIX用: ターゲットネットワークの更新間隔（ステップ数）",
+    )
+    parser.add_argument(
+        "--qmix_epsilon_start",
+        type=float,
+        default=1.0,
+        help="QMIX用: ε-greedy探索の初期値",
+    )
+    parser.add_argument(
+        "--qmix_epsilon_finish",
+        type=float,
+        default=0.05,
+        help="QMIX用: ε-greedy探索の最終値",
+    )
+    parser.add_argument(
+        "--qmix_epsilon_anneal_time",
+        type=int,
+        default=50000,
+        help="QMIX用: εを減衰させるステップ数",
+    )
+    parser.add_argument(
+        "--qmix_mixer_embed_dim",
+        type=int,
+        default=32,
+        help="QMIX用: Mixerネットワークの埋め込み次元",
+    )
+    parser.add_argument(
+        "--qmix_mixer_hidden_size",
+        type=int,
+        default=32,
+        help="QMIX用: Mixerネットワークの隠れ層サイズ",
+    )
+
     return parser

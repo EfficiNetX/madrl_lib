@@ -1,40 +1,16 @@
-import torch
-import numpy as np
+from runner.shared.base_runner import BaseRunner
 
 
-class ValueBaseRunner(object):
+class ValueBaseRunner(BaseRunner):
     """
     Value-basedアルゴリズム（QMIX/VDNなど）用のベースクラス
     """
 
     def __init__(self, config):
-        self.all_args = config["args"]
-        self.envs = config["envs"]
-        self.num_env_steps = self.all_args.num_env_steps
-        self.episode_length = self.all_args.episode_length
-        self.num_rollout_threads = self.all_args.num_rollout_threads
-        self.n_agents = self.all_args.num_agents
-        self.log_interval = self.all_args.log_interval
-        self.algorithm_name = self.all_args.algorithm_name
-
-        self.obs_space = self.envs.observation_space[
-            0
-        ]  # 各エージェントの観測次元
-        self.share_obs_space = self.envs.share_observation_space[
-            0
-        ]  # 状態の次元
-
-        """
-        base_runner.pyでは，share_obs_spaceは次のように定義されているが，QMIXでは，
-        状態を使うので，環境のshare_observation_spaceを使う
-        share_obs_space = (
-            self.envs.share_observation_space[0]
-            if self.use_centralized_V
-            else self.envs.observation_space[0]
-        )  # エージェント0のshared観測
-        """
-
-        # Policy, Mixer, Trainer, Bufferの初期化（アルゴリズムごとに分岐）
+        super().__init__(config)
+        # 追加で必要な初期化（state_dim, mixer, etc.）
+        self.state_dim = self.envs.share_observation_space[0]
+        # ここでValue系専用のpolicy, mixer, trainer, bufferを初期化
         if self.algorithm_name == "QMIX":
             from algorithms.qmix.algorithm.qmix_policy import (
                 QMIXPolicy as Policy,
@@ -46,26 +22,39 @@ class ValueBaseRunner(object):
             )
         else:
             raise NotImplementedError("Unknown value-based algorithm.")
-
+        # TODO: 中央集権型価値関数を使わない場合の処理．self.mixer = Noneの時のtrainerの挙動を実装すれば良い
         self.policy = Policy(self.all_args, ...)
         self.mixer = Mixer(self.all_args)
         self.trainer = Trainer(self.policy, self.mixer, self.all_args)
         self.buffer = Buffer(self.all_args, ...)
 
+    def collect(self, step):
+        # 1ステップ分のデータ収集
+        actions, next_hidden_states = self.policy.select_actions(
+            self.current_obs, self.current_hidden_states
+        )
+        return actions, next_hidden_states
+
     def warmup(self):
-        # 環境の初期化や必要な初期処理
-        pass
+        # 環境をリセットして初期観測を取得
+        obs = self.envs.reset()
+        # 必要なら初期観測をバッファや変数に保存
+        self.initial_obs = obs.copy()
+        # hidden stateの初期化も必要なら
+        self.initial_hidden_states = self.policy.init_hidden(
+            batch_size=self.num_rollout_threads
+        )
 
     def insert(self, episode_data):
-        # 1エピソード分のデータをバッファに追加
         self.buffer.add(episode_data)
 
     def train(self, t_env, episode_num):
-        # バッファからサンプルして学習
         if self.buffer.can_sample(self.all_args.qmix_batch_size):
             batch = self.buffer.sample(self.all_args.qmix_batch_size)
             self.trainer.train(batch, t_env=t_env, episode_num=episode_num)
 
     def update_epsilon(self, t_env):
-        # 探索率の減衰
         self.policy.update_epsilon(t_env)
+
+    def can_sample(self):
+        return self.buffer.can_sample(self.all_args.qmix_batch_size)

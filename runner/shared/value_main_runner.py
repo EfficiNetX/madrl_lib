@@ -22,7 +22,7 @@ class ValueMainRunner(ValueBaseRunner):
         for episode in range(episodes):
             if self.use_linear_lr_decay:
                 self.trainer.policy.lr_decay(episode, episodes)
-            # TODO: 環境を並列で実行できるようにする
+            # バッファに保存するための辞書
             episode_data = {
                 "state": np.zeros(
                     (
@@ -73,16 +73,13 @@ class ValueMainRunner(ValueBaseRunner):
                     (self.num_rollout_threads, self.episode_length, 1),
                     dtype=int,
                 ),
-            }  # バッファに保存するための辞書
-            obs = (
-                self.envs.reset()
-            )  # (self.num_rollout_threads, self.obs_space)
+            }
+            obs = self.envs.reset()
             hidden_states = self.policy.init_hidden(
                 batch_size=self.num_rollout_threads
             )
-            # for文: 1エピソードのデータ収集を行う
+            # 1エピソードのデータ収集
             for step in range(self.episode_length):
-                # TODO: デバッグ時に保存データの次元があってるか確認
                 episode_data["obs"][:, step] = obs
                 actions, next_hidden_states = self.policy.select_actions(
                     obs, hidden_states
@@ -94,12 +91,10 @@ class ValueMainRunner(ValueBaseRunner):
                 episode_data["dones"][:, step] = dones
                 episode_data["filled"][:, step] = 1
 
-                # state, avail_actions, filledも同様に保存
                 obs = next_obs
                 hidden_states = next_hidden_states
                 if dones.any():
                     break
-            # TODO: 終了時の情報も保存する
 
             self.insert(episode_data)
             # バッチ数分のデータが溜まったら学習を行う

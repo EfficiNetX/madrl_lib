@@ -24,30 +24,12 @@ class ValueMainRunner(ValueBaseRunner):
                 self.trainer.policy.lr_decay(episode, episodes)
             # バッファに保存するための辞書
             episode_data = {
-                "state": np.zeros(
-                    (
-                        self.num_rollout_threads,
-                        self.episode_length,
-                        self.n_agents,
-                        self.state_dim,
-                    ),
-                    dtype=np.float32,
-                ),
                 "obs": np.zeros(
                     (
                         self.num_rollout_threads,
-                        self.episode_length,
+                        self.episode_length + 1,
                         self.n_agents,
                         self.obs_space,
-                    ),
-                    dtype=np.float32,
-                ),
-                "actions": np.zeros(
-                    (
-                        self.num_rollout_threads,
-                        self.episode_length,
-                        self.n_agents,
-                        self.action_space,
                     ),
                     dtype=np.float32,
                 ),
@@ -69,6 +51,15 @@ class ValueMainRunner(ValueBaseRunner):
                     ),
                     dtype=bool,
                 ),
+                "actions": np.zeros(
+                    (
+                        self.num_rollout_threads,
+                        self.episode_length,
+                        self.n_agents,
+                        self.action_space,
+                    ),
+                    dtype=np.float32,
+                ),
                 "filled": np.zeros(
                     (self.num_rollout_threads, self.episode_length, 1),
                     dtype=int,
@@ -86,7 +77,6 @@ class ValueMainRunner(ValueBaseRunner):
                 )
                 episode_data["actions"][:, step] = actions
                 next_obs, rewards, dones, info = self.envs.step(actions)
-                episode_data["state"][:, step] = info["state"]
                 episode_data["rewards"][:, step] = rewards
                 episode_data["dones"][:, step] = dones
                 episode_data["filled"][:, step] = 1
@@ -96,6 +86,9 @@ class ValueMainRunner(ValueBaseRunner):
                 if dones.any():
                     break
 
+            # ループ終了後の最後の状態を保存
+            episode_data["obs"][:, step + 1] = obs
+
             self.insert(episode_data)
             # バッチ数分のデータが溜まったら学習を行う
             if self.can_sample():
@@ -104,3 +97,13 @@ class ValueMainRunner(ValueBaseRunner):
 
             if episode % self.log_interval == 0:
                 print(f"Episode {episode}/{episodes}")
+
+    def insert(self, episode_data):
+        # obsからshare_obsを取得してepisode_dataに追加
+        # TODO: 必要ならば，obsを共有しない場合の分岐を実装する
+        share_obs = episode_data["obs"]
+        share_obs = share_obs.reshape(
+            self.num_rollout_threads, self.episode_length + 1, -1
+        )
+        episode_data["share_obs"] = share_obs
+        self.buffer.insert(episode_data)

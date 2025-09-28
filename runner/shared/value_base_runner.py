@@ -17,6 +17,23 @@ class ValueBaseRunner(object):
         self.log_interval = self.all_args.log_interval
         self.algorithm_name = self.all_args.algorithm_name
 
+        self.obs_space = self.envs.observation_space[
+            0
+        ]  # 各エージェントの観測次元
+        self.share_obs_space = self.envs.share_observation_space[
+            0
+        ]  # 状態の次元
+
+        """
+        base_runner.pyでは，share_obs_spaceは次のように定義されているが，QMIXでは，
+        状態を使うので，環境のshare_observation_spaceを使う
+        share_obs_space = (
+            self.envs.share_observation_space[0]
+            if self.use_centralized_V
+            else self.envs.observation_space[0]
+        )  # エージェント0のshared観測
+        """
+
         # Policy, Mixer, Trainer, Bufferの初期化（アルゴリズムごとに分岐）
         if self.algorithm_name == "QMIX":
             from algorithms.qmix.algorithm.qmix_policy import (
@@ -24,13 +41,6 @@ class ValueBaseRunner(object):
             )
             from algorithms.qmix.algorithm.mixing_nn import QMixer as Mixer
             from algorithms.qmix.qmix_trainer import QMIXTrainer as Trainer
-            from utils.shared_episode_buffer import (
-                EpisodeReplayBuffer as Buffer,
-            )
-        elif self.algorithm_name == "VDN":
-            from algorithms.vdn.vdn_policy import VDNPolicy as Policy
-            from algorithms.vdn.mixing_nn import VDNMixer as Mixer
-            from algorithms.vdn.vdn_trainer import VDNTrainer as Trainer
             from utils.shared_episode_buffer import (
                 EpisodeReplayBuffer as Buffer,
             )

@@ -48,13 +48,14 @@ class ValueBaseRunner(BaseRunner):
     def insert(self, episode_data):
         self.buffer.add(episode_data)
 
-    def train(self, t_env, episode_num):
-        if self.buffer.can_sample(self.all_args.qmix_batch_size):
-            batch = self.buffer.sample(self.all_args.qmix_batch_size)
-            self.trainer.train(batch, t_env=t_env, episode_num=episode_num)
+    def train(self, episode_samples):
+        self.trainer.train(episode_samples)
 
     def update_epsilon(self, t_env):
         self.policy.update_epsilon(t_env)
 
     def can_sample(self):
         return self.buffer.can_sample(self.all_args.qmix_batch_size)
+
+    def sample(self):
+        return self.buffer.sample(self.all_args.qmix_batch_size)

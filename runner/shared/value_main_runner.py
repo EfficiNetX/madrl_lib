@@ -20,9 +20,13 @@ class ValueMainRunner(ValueBaseRunner):
         )
 
         for episode in range(episodes):
+            # TODO : 学習率の減衰
+            """
             if self.use_linear_lr_decay:
                 self.trainer.policy.lr_decay(episode, episodes)
+            """
             # バッファに保存するための辞書
+            # TODO: episode_dataのクラス化
             episode_data = {
                 "obs": np.zeros(
                     (
@@ -72,7 +76,7 @@ class ValueMainRunner(ValueBaseRunner):
             # 1エピソードのデータ収集
             for step in range(self.episode_length):
                 episode_data["obs"][:, step] = obs
-                actions, next_hidden_states = self.policy.select_actions(
+                actions, next_hidden_states = self.trainer.policy.get_actions(
                     obs, hidden_states
                 )
                 episode_data["actions"][:, step] = actions

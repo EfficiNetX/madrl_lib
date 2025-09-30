@@ -1,82 +1,140 @@
 import torch
 import numpy as np
+import torch.nn as nn
+import torch.nn.functional as F
 from algorithms.utils.rnn import RNNLayer
+from utils.util import update_linear_schedule
 
 
 class QMIXPolicy:
-    def __init__(self, args, obs_dim, action_dim, n_agents):
+    def __init__(
+        self,
+        args,
+        obs_space,
+        share_obs_space,
+        action_space,
+    ):
         self.args = args
-        self.n_agents = n_agents
-        self.obs_dim = obs_dim
-        self.action_dim = action_dim
+        self.lr = args.lr
+        self.obs_space = obs_space
+        self.share_obs_space = share_obs_space
+        self.action_space = action_space
+        self.qmix_rnn_hidden_dim = args.qmix_rnn_hidden_dim
 
-        # 各エージェントのQネットワーク（パラメータ共有 or 個別）
-        self.agent_q_network = RNNLayer(
-            inputs_dim=obs_dim,
-            outputs_dim=action_dim,
-            recurrent_N=args.recurrent_N,
-            use_orthogonal=args.use_orthogonal,
+        # Qネットワーク
+        self.agent_q_network = RNNAgent(
+            self.obs_space, self.qmix_rnn_hidden_dim, self.action_space
         )
-        # epsilon-greedy探索用
+        self.q_out = nn.Linear(self.qmix_rnn_hidden_dim, self.action_space)
         self.epsilon = args.qmix_epsilon_start
 
-        # hidden state管理
-        self.hidden_states = None
-
-    def init_hidden(self, batch_size):
-        # 各エージェントの初期hidden stateを生成
-        self.hidden_states = torch.zeros(
-            batch_size, self.n_agents, self.agent_q_network.hidden_dim
+        self.optimizer = torch.optim.Adam(
+            list(self.agent_q_network.parameters())
+            + list(self.q_out.parameters()),
+            lr=self.lr,
+            eps=args.opti_eps,
+            weight_decay=args.weight_decay,
         )
 
-    def forward(self, obs, hidden_states):
-        # obs: [batch, n_agents, obs_dim]
-        # hidden_states: [batch, n_agents, hidden_dim]
-        q_values, next_hidden_states = self.agent_q_network(obs, hidden_states)
-        return q_values, next_hidden_states
+    def forward_q_network(self, obs, actions=None, filled=None) -> np.ndarray:
+        # obs: (batch_size, episode_length, n_agents, obs_dim)
+        batch_size, episode_length, n_agents, obs_dim = obs.shape
+        device = obs.device if hasattr(obs, "device") else "cpu"
+        q_list = []
+        hxs = torch.zeros(
+            batch_size * n_agents, self.qmix_rnn_hidden_dim, device=device
+        )
+        for t in range(episode_length):
+            obs_t = obs[:, t].reshape(batch_size * n_agents, obs_dim)
+            # filledがあればマスクとして利用（0埋め部分はhidden stateリセットではなく学習で除外）
+            if filled is not None:
+                mask_t = (
+                    filled[:, t].repeat(1, n_agents).reshape(-1, 1).to(device)
+                )
+            else:
+                mask_t = torch.ones(batch_size * n_agents, 1, device=device)
+            rnn_out, hxs = self.agent_q_network(obs_t, hxs, mask_t)
+            q_t = self.q_out(rnn_out)  # (batch_size*n_agents, action_dim)
+            q_t = q_t.view(batch_size, n_agents, self.action_space)
+            q_list.append(q_t)
+        q_values = torch.stack(
+            q_list, dim=1
+        )  # (batch_size, episode_length, n_agents, action_dim)
+        if actions is not None:
+            actions = actions.squeeze(-1)
+            chosen_q = q_values.gather(-1, actions.unsqueeze(-1)).squeeze(-1)
+            return (
+                chosen_q.cpu().detach().numpy()
+            )  # np.arrayで返す # (batch_size, episode_length, n_agents)
+        else:
+            return (
+                q_values.cpu().detach().numpy()
+            )  # np.arrayで返す # (batch_size, episode_length, n_agents, action_dim)
 
-    def select_actions(
-        self, obs, hidden_states, avail_actions=None, test_mode=False
+    def get_actions(
+        self,
+        states,
+        hidden_states=None,
+        masks=None,
+        epsilon=None,
+        deterministic=False,
     ):
-        # Q値計算
-        q_values, next_hidden_states = self.forward(obs, hidden_states)
-        # epsilon-greedyで行動選択
-        actions = self._epsilon_greedy(q_values, avail_actions, test_mode)
-        return actions, next_hidden_states
-
-    def _epsilon_greedy(self, q_values, avail_actions=None, test_mode=False):
-        # q_values: [batch, n_agents, action_dim]
-        if test_mode or self.epsilon <= 0.0:
+        batch_size, n_agents, obs_dim = states.shape
+        device = states.device if hasattr(states, "device") else "cpu"
+        if epsilon is None:
+            epsilon = self.epsilon
+        hxs = (
+            hidden_states
+            if hidden_states is not None
+            else torch.zeros(
+                batch_size * n_agents, self.qmix_rnn_hidden_dim, device=device
+            )
+        )
+        mask = (
+            masks
+            if masks is not None
+            else torch.ones(batch_size * n_agents, 1, device=device)
+        )
+        rnn_out, next_hxs = self.agent_q_network(
+            states.reshape(batch_size * n_agents, obs_dim), hxs, mask
+        )
+        q_values = self.q_out(rnn_out).view(
+            batch_size, n_agents, self.action_space
+        )
+        if deterministic:
             actions = q_values.argmax(dim=-1)
         else:
-            actions = []
-            for agent_q in q_values:
-                if np.random.rand() < self.epsilon:
-                    if avail_actions is not None:
-                        avail = avail_actions[agent_q]
-                        action = np.random.choice(np.where(avail)[0])
-                    else:
-                        action = np.random.randint(self.action_dim)
-                else:
-                    action = agent_q.argmax().item()
-                actions.append(action)
-            actions = torch.tensor(actions)
-        return actions
+            if np.random.rand() < epsilon:
+                actions = torch.randint(
+                    0, self.action_space, (batch_size, n_agents), device=device
+                )
+            else:
+                actions = q_values.argmax(dim=-1)
+        return actions, next_hxs
 
-    def update_epsilon(self, t_env):
-        # εの減衰
-        eps_start = self.args.qmix_epsilon_start
-        eps_end = self.args.qmix_epsilon_finish
-        eps_anneal = self.args.qmix_epsilon_anneal_time
-        self.epsilon = max(
-            eps_end, eps_start - (eps_start - eps_end) * t_env / eps_anneal
+    def lr_decay(self, episode, total_episodes):
+        update_linear_schedule(
+            self.optimizer, episode, total_episodes, self.lr
         )
 
-    def parameters(self):
-        return self.agent_q_network.parameters()
 
-    def save_models(self, path):
-        torch.save(self.agent_q_network.state_dict(), f"{path}/agent_q.th")
+class RNNAgent(nn.Module):
+    def __init__(self, obs_space, rnn_hidden_dim, n_actions):
+        super(RNNAgent, self).__init__()
+        self.fc1 = nn.Linear(obs_space, rnn_hidden_dim)
+        self.rnn = nn.GRUCell(rnn_hidden_dim, rnn_hidden_dim)
+        self.fc2 = nn.Linear(rnn_hidden_dim, n_actions)
+        self.rnn_hidden_dim = rnn_hidden_dim
 
-    def load_models(self, path):
-        self.agent_q_network.load_state_dict(torch.load(f"{path}/agent_q.th"))
+    def init_hidden(self):
+        # make hidden states on same device as model
+        return torch.zeros(1, self.rnn_hidden_dim)
+
+    def forward(self, inputs, hidden_state, mask=None):
+        x = F.relu(self.fc1(inputs))
+        h_in = hidden_state.reshape(-1, self.rnn_hidden_dim)
+        if mask is not None:
+            h_in = h_in * mask
+        h = self.rnn(x, h_in)
+        q = self.fc2(h)
+        return q, h

@@ -343,5 +343,11 @@ def get_config():
         default=32,
         help="QMIX用: Mixerネットワークの隠れ層サイズ",
     )
+    parser.add_argument(
+        "--qmix_rnn_hidden_dim",
+        type=int,
+        default=64,
+        help="RNNの隠れ状態の次元",
+    )
 
     return parser

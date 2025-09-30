@@ -92,7 +92,7 @@ class ValueMainRunner(ValueBaseRunner):
             self.insert(episode_data)
             # バッチ数分のデータが溜まったら学習を行う
             if self.can_sample():
-                episode_samples = self.sample(self.all_args.qmix_batch_size)
+                episode_samples = self.sample()
                 self.train(episode_samples)
 
             if episode % self.log_interval == 0:

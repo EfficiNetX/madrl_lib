@@ -13,7 +13,6 @@ class EpisodeReplayBuffer:
         action_space,
     ):
         self.buffer_size = args.qmix_buffer_size
-        self.batch_size = args.qmix_batch_size
         self.episode_length = args.episode_length
         self.num_rollout_threads = args.num_rollout_threads
         self.num_agents = num_agents
@@ -22,6 +21,8 @@ class EpisodeReplayBuffer:
         self.action_space = action_space
         self.buffer_index = 0
         self.episodes_in_buffer = 0  # バッファに保存されているエピソード数
+        self.buffer_size = args.qmix_buffer_size
+        self.batch_size = args.qmix_batch_size
 
         # バッファ本体
         self.share_obs = np.zeros(
@@ -132,13 +133,13 @@ class EpisodeReplayBuffer:
             )
             self.buffer_index = overflow
 
-    def can_sample(self):
+    def can_sample(self, batch_size):
         return self.episodes_in_buffer >= self.batch_size
 
-    def sample(self):
-        assert self.can_sample()
+    def sample(self, batch_size):
+        assert self.can_sample(batch_size)
         indices = np.random.choice(
-            self.episodes_in_buffer, self.batch_size, replace=False
+            self.episodes_in_buffer, batch_size, replace=False
         )
         batch = dict(
             share_obs=self.share_obs[indices],

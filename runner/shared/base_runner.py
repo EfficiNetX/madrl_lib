@@ -34,7 +34,7 @@ class BaseRunner(object):
             if self.use_centralized_V
             else self.envs.observation_space[0]
         )  # エージェント0のshared観測
-        action_space = self.envs.action_space[0]  # 基本的には1次元
+        action_space = self.envs.action_space[0]
 
         # interval
         self.log_interval = self.all_args.log_interval

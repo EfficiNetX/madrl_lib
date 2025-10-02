@@ -12,9 +12,7 @@ class QMIXTrainer:
         self.mixer = mixer  # QMixer
         self.logger = logger
 
-        self.params = list(policy.agent_q_network.parameters()) + list(
-            mixer.parameters()
-        )
+        self.params = list(policy.agent_q_network.parameters()) + list(mixer.parameters())
         self.target_policy = copy.deepcopy(policy)
         self.target_mixer = copy.deepcopy(mixer)
         self.episode_num = 0  # 学習エピソード数
@@ -65,29 +63,46 @@ class QMIXTrainer:
         self.episode_num += episode_batch["share_obs"].shape[0]
         # TD誤差を計算
         # ① 実際の行動のQ値を計算
-        q_values = self.policy.forward_q_network(
-            obs[:, :-1], actions
+        total_q_values = []
+        hidden_state = self.policy.init_hidden(
+            self.args.qmix_batch_size
+        )  # バッチ数でRNNの隠れ状態を初期化
+        for t in range(self.args.episode_length):  # episode_length回ループ
+            q_values, hidden_state = self.policy.forward(obs[:, t], hidden_state, None)
+            total_q_values.append(q_values)
+        total_q_values = torch.stack(
+            total_q_values, dim=1
+        )  # (batch_size, episode_length, n_agents, action_space)
+        chosen_action_qvals = torch.gather(total_q_values, dim=3, index=actions).squeeze(
+            3
         )  # (batch_size, episode_length, n_agents)
-        chosen_action_qvals = self.mixer.forward(
-            q_values, share_obs[:, :-1]
-        )  # (batch_size, episode_length, 1)
-        # ② rewardsを計算
-        rewards_sum = rewards.sum(dim=2)  # (batch_size, episode_length, 1)
-        # ③ 次状態の各エージェントのmax Q値を計算
-        with torch.no_grad():
-            next_obs = obs[
-                :, 1:
-            ]  # (batch_size, episode_length, n_agents, obs_dim)
-            all_next_q = self.target_policy.forward_q_network(
-                next_obs
-            )  # (batch_size, episode_length, n_agents, n_actions)
-            max_next_q, _ = all_next_q.max(
-                dim=-1
-            )  # (batch_size, episode_length, n_agents)
-            target_max_qvals = self.target_mixer.forward(
-                max_next_q, share_obs[:, 1:]
-            )  # (batch_size, episode_length, 1)
 
+        # ② ターゲットネットワークを用いて次の状態での最大Q値を計算
+        target_total_q_values = []
+        hidden_state = self.target_policy.init_hidden(self.args.qmix_batch_size)
+        for t in range(self.args.episode_length):
+            target_q_values, hidden_state = self.target_policy.forward(
+                obs[:, t + 1], hidden_state, None
+            )
+            target_total_q_values.append(target_q_values)
+        target_total_q_values = torch.stack(
+            target_total_q_values, dim=1
+        )  # (batch_size, episode_length, n_agents, action_space)
+        target_max_qvals = target_total_q_values.max(dim=3)[
+            0
+        ]  # (batch_size, episode_length, n_agents)
+
+        # ③ ミキサーを用いて全体のQ値を計算
+        if self.mixer is not None:
+            chosen_action_qvals = self.mixer(chosen_action_qvals, share_obs[:, :-1])
+            target_max_qvals = self.target_mixer(
+                target_max_qvals, share_obs[:, 1:]
+            )  # (batch_size, episode_length, 1)
+        else:  # VDNの場合
+            chosen_action_qvals = chosen_action_qvals.sum(dim=2)  # (batch_size, episode_length)
+            target_max_qvals = target_max_qvals.sum(dim=2)  # (batch_size, episode_length)
+
+        rewards_sum = rewards.sum(dim=2)  # (batch_size, episode_length)
         # TD誤差を計算
         td_errors = chosen_action_qvals - (
             rewards_sum + self.args.qmix_gamma * target_max_qvals * (1 - dones)
@@ -110,9 +125,7 @@ class QMIXTrainer:
             self._update_targets()
 
     def _update_targets(self):
-        self.target_policy.agent_q_network.load_state_dict(
-            self.policy.agent_q_network.state_dict()
-        )
+        self.target_policy.agent_q_network.load_state_dict(self.policy.agent_q_network.state_dict())
         if self.mixer is not None:
             self.target_mixer.load_state_dict(self.mixer.state_dict())
         if self.logger is not None:

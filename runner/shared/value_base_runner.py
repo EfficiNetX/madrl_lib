@@ -33,6 +33,9 @@ class ValueBaseRunner(BaseRunner):
             share_obs_space=self.share_obs_space,
             action_space=self.action_space,
         )
+        self.obs_dim = len(self.obs_space)
+        self.action_dim = len(self.action_space)
+        self.share_obs_dim = len(self.share_obs_space)
 
     def collect(self, step):
         # 1ステップ分のデータ収集

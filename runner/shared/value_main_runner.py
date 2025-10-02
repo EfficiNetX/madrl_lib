@@ -13,11 +13,7 @@ class ValueMainRunner(ValueBaseRunner):
 
     def run(self):
         self.warmup()
-        episodes = (
-            int(self.num_env_steps)
-            // self.episode_length
-            // self.num_rollout_threads
-        )
+        episodes = int(self.num_env_steps) // self.episode_length // self.num_rollout_threads
 
         for episode in range(episodes):
             # TODO : 学習率の減衰
@@ -33,7 +29,7 @@ class ValueMainRunner(ValueBaseRunner):
                         self.num_rollout_threads,
                         self.episode_length + 1,
                         self.n_agents,
-                        self.obs_space,
+                        self.obs_dim,
                     ),
                     dtype=np.float32,
                 ),
@@ -60,7 +56,7 @@ class ValueMainRunner(ValueBaseRunner):
                         self.num_rollout_threads,
                         self.episode_length,
                         self.n_agents,
-                        self.action_space,
+                        1,
                     ),
                     dtype=np.float32,
                 ),
@@ -70,15 +66,11 @@ class ValueMainRunner(ValueBaseRunner):
                 ),
             }
             obs = self.envs.reset()
-            hidden_states = self.policy.init_hidden(
-                batch_size=self.num_rollout_threads
-            )
+            hidden_states = self.policy.init_hidden(self.num_rollout_threads)
             # 1エピソードのデータ収集
             for step in range(self.episode_length):
                 episode_data["obs"][:, step] = obs
-                actions, next_hidden_states = self.trainer.policy.get_actions(
-                    obs, hidden_states
-                )
+                actions, next_hidden_states = self.trainer.policy.get_actions(obs, hidden_states)
                 episode_data["actions"][:, step] = actions
                 next_obs, rewards, dones, info = self.envs.step(actions)
                 episode_data["rewards"][:, step] = rewards
@@ -106,8 +98,6 @@ class ValueMainRunner(ValueBaseRunner):
         # obsからshare_obsを取得してepisode_dataに追加
         # TODO: 必要ならば，obsを共有しない場合の分岐を実装する
         share_obs = episode_data["obs"]
-        share_obs = share_obs.reshape(
-            self.num_rollout_threads, self.episode_length + 1, -1
-        )
+        share_obs = share_obs.reshape(self.num_rollout_threads, self.episode_length + 1, -1)
         episode_data["share_obs"] = share_obs
         self.buffer.insert(episode_data)

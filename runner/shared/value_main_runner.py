@@ -1,5 +1,5 @@
 import time
-from runner.separated.value_base_runner import ValueBaseRunner
+from runner.shared.value_base_runner import ValueBaseRunner
 import numpy as np
 
 

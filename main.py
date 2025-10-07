@@ -40,6 +40,10 @@ def main(args):
     else:
         from runner.separated.main_runner import UserEnvRunner as Runner
 
+    # QMIXを動かすためのdemoコード
+    if args.algorithm_name == "QMIX":
+        from runner.shared.value_main_runner import ValueMainRunner as Runner
+
     runner = Runner(config)
     runner.run()
 

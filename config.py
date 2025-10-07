@@ -33,7 +33,7 @@ def get_config():
             "MAT",
             "MAT_DEC",
         ],
-        default="MAT",
+        default="QMIX",  # QMIXを動かすために変更
         help="アルゴリズム名の指定",
     )
     parser.add_argument(
@@ -74,7 +74,7 @@ def get_config():
     parser.add_argument(
         "--share_policy",
         action="store_true",
-        default=False,
+        default=True,  # QMIXを動かすためにTrueに変更
         help="Whether to use the same policy for all agents",
     )
     parser.add_argument(

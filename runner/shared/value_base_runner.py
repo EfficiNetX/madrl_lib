@@ -9,7 +9,9 @@ class ValueBaseRunner(BaseRunner):
     def __init__(self, config):
         super().__init__(config)
         # 追加で必要な初期化（state_dim, mixer, etc.）
-        self.state_dim = self.envs.share_observation_space[0]
+        self.obs_space = self.envs.observation_space[0]
+        self.share_obs_space = self.envs.share_observation_space[0]
+        self.action_space = self.envs.action_space[0]
         # ここでValue系専用のpolicy, mixer, trainer, bufferを初期化
         if self.algorithm_name == "QMIX":
             from algorithms.qmix.algorithm.qmix_policy import (
@@ -23,6 +25,7 @@ class ValueBaseRunner(BaseRunner):
         else:
             raise NotImplementedError("Unknown value-based algorithm.")
         # TODO: 中央集権型価値関数を使わない場合の処理．self.mixer = Noneの時のtrainerの挙動を実装すれば良い
+<<<<<<< Updated upstream
         self.policy = Policy(
             self.all_args,
             self.obs_space,
@@ -35,6 +38,10 @@ class ValueBaseRunner(BaseRunner):
             self.share_obs_space,
             self.action_space,
         )
+=======
+        self.policy = Policy(self.all_args, self.obs_space, self.share_obs_space, self.action_space)
+        self.mixer = Mixer(self.all_args, self.obs_space, self.share_obs_space, self.action_space)
+>>>>>>> Stashed changes
         self.trainer = Trainer(self.policy, self.mixer, self.all_args)
         self.buffer = ReplayBuffer(
             args=self.all_args,

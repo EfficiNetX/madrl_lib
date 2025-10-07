@@ -49,14 +49,13 @@ class EpisodeReplayBuffer:
                 self.num_agents,
                 1,
             ),
-            dtype=np.float32,
+            dtype=np.int64,
         )
         self.rewards = np.zeros(
             (
                 self.buffer_size,
                 self.episode_length,
                 self.num_agents,
-                1,
             ),
             dtype=np.float32,
         )
@@ -65,7 +64,6 @@ class EpisodeReplayBuffer:
                 self.buffer_size,
                 self.episode_length,
                 self.num_agents,
-                1,
             ),
             dtype=bool,
         )
@@ -73,9 +71,8 @@ class EpisodeReplayBuffer:
             (
                 self.buffer_size,
                 self.episode_length,
-                1,
             ),
-            dtype=int,
+            dtype=bool,
         )
 
     def _assign_buffer(self, idx, episodes_data, offset=0):
@@ -105,9 +102,9 @@ class EpisodeReplayBuffer:
                 "share_obs": (num_envs, episode_length + 1, num_agents, share_obs_dim)
                 "obs": (num_envs, episode_length + 1, num_agents, obs_dim)
                 "actions": (num_envs, episode_length, num_agents, 1)
-                "rewards": (num_envs, episode_length, num_agents, 1)
-                "dones": (num_envs, episode_length, num_agents, 1)
-                "filled": (num_envs, episode_length, 1)
+                "rewards": (num_envs, episode_length, num_agents)
+                "dones": (num_envs, episode_length, num_agents)
+                "filled": (num_envs, episode_length)
             }
         """
         if self.buffer_index + self.num_rollout_threads <= self.buffer_size:

@@ -11,17 +11,14 @@ class QMIXTrainer:
         self.policy = policy  # QMIXPolicy
         self.mixer = mixer  # QMixer
         self.logger = logger
-
-        self.params = list(policy.agent_q_network.parameters()) + list(mixer.parameters())
         self.target_policy = copy.deepcopy(policy)
         self.target_mixer = copy.deepcopy(mixer)
         self.episode_num = 0  # 学習エピソード数
 
         self.last_target_update_episode = 0
         self.qmix_target_update_interval = args.qmix_target_update_interval
-        self.log_stats_t = -self.args.learner_log_interval - 1
 
-    # TODO: 学習率減衰関数を書く (関数自体はpolicyの中にある)
+    # TODO: 学習率減衰関数を書く
 
     def train(self, episode_batch):
         """
@@ -29,9 +26,9 @@ class QMIXTrainer:
             - 'share_obs': (batch_size, episode_length + 1, share_obs_dim)
             - 'obs': (batch_size, episode_length + 1, n_agents, obs_dim)
             - 'actions': (batch_size, episode_length, n_agents, 1)
-            - 'rewards': (batch_size, episode_length, n_agents, 1)
-            - 'dones': (batch_size, episode_length, 1)
-            - 'filled': (batch_size, episode_length, 1) # パディングされていない部分を示すマスク 1ならば有効 0ならば無効
+            - 'rewards': (batch_size, episode_length, n_agents)
+            - 'dones': (batch_size, episode_length, n_agents)
+            - 'filled': (batch_size, episode_length) # パディングされていない部分を示すマスク 1ならば有効 0ならば無効
         """
         # numpy -> torch.Tensor
         share_obs = torch.tensor(
@@ -49,17 +46,17 @@ class QMIXTrainer:
             episode_batch["rewards"],
             dtype=torch.float32,
             device=self.args.device,
-        )  # (batch_size, episode_length, n_agents, 1)
+        )  # (batch_size, episode_length, n_agents)
         dones = torch.tensor(
             episode_batch["dones"],
-            dtype=torch.float32,
+            dtype=torch.bool,
             device=self.args.device,
-        )  # (batch_size, episode_length, 1)
+        )  # (batch_size, episode_length, num_agents)
         filled = torch.tensor(
             episode_batch["filled"],
-            dtype=torch.float32,
+            dtype=torch.bool,
             device=self.args.device,
-        )  # (batch_size, episode_length, 1)
+        )  # (batch_size, episode_length)
         self.episode_num += episode_batch["share_obs"].shape[0]
         # TD誤差を計算
         # ① 実際の行動のQ値を計算
@@ -68,18 +65,24 @@ class QMIXTrainer:
             self.args.qmix_batch_size
         )  # バッチ数でRNNの隠れ状態を初期化
         for t in range(self.args.episode_length):  # episode_length回ループ
-            q_values, hidden_state = self.policy.forward(obs[:, t], hidden_state, None)
+            q_values, hidden_state = self.policy.forward(
+                obs[:, t], hidden_state, None
+            )
             total_q_values.append(q_values)
         total_q_values = torch.stack(
             total_q_values, dim=1
         )  # (batch_size, episode_length, n_agents, action_space)
-        chosen_action_qvals = torch.gather(total_q_values, dim=3, index=actions).squeeze(
+        chosen_action_qvals = torch.gather(
+            total_q_values, dim=3, index=actions
+        ).squeeze(
             3
         )  # (batch_size, episode_length, n_agents)
 
         # ② ターゲットネットワークを用いて次の状態での最大Q値を計算
         target_total_q_values = []
-        hidden_state = self.target_policy.init_hidden(self.args.qmix_batch_size)
+        hidden_state = self.target_policy.init_hidden(
+            self.args.qmix_batch_size
+        )
         for t in range(self.args.episode_length):
             target_q_values, hidden_state = self.target_policy.forward(
                 obs[:, t + 1], hidden_state, None
@@ -94,18 +97,24 @@ class QMIXTrainer:
 
         # ③ ミキサーを用いて全体のQ値を計算
         if self.mixer is not None:
-            chosen_action_qvals = self.mixer(chosen_action_qvals, share_obs[:, :-1])
+            chosen_action_qvals = self.mixer(
+                chosen_action_qvals, share_obs[:, :-1]
+            )
             target_max_qvals = self.target_mixer(
                 target_max_qvals, share_obs[:, 1:]
-            )  # (batch_size, episode_length, 1)
+            )  # (batch_size, episode_length)
         else:  # VDNの場合
-            chosen_action_qvals = chosen_action_qvals.sum(dim=2)  # (batch_size, episode_length)
-            target_max_qvals = target_max_qvals.sum(dim=2)  # (batch_size, episode_length)
+            chosen_action_qvals = chosen_action_qvals.sum(
+                dim=2
+            )  # (batch_size, episode_length)
+            target_max_qvals = target_max_qvals.sum(
+                dim=2
+            )  # (batch_size, episode_length)
 
         rewards_sum = rewards.sum(dim=2)  # (batch_size, episode_length)
         # TD誤差を計算
         td_errors = chosen_action_qvals - (
-            rewards_sum + self.args.qmix_gamma * target_max_qvals * (1 - dones)
+            rewards_sum + self.args.qmix_gamma * target_max_qvals * filled
         )
         # TD誤差の平均を取る
         loss = (td_errors**2 * filled).sum() / filled.sum()
@@ -125,7 +134,9 @@ class QMIXTrainer:
             self._update_targets()
 
     def _update_targets(self):
-        self.target_policy.agent_q_network.load_state_dict(self.policy.agent_q_network.state_dict())
+        self.target_policy.agent_q_network.load_state_dict(
+            self.policy.agent_q_network.state_dict()
+        )
         if self.mixer is not None:
             self.target_mixer.load_state_dict(self.mixer.state_dict())
         if self.logger is not None:

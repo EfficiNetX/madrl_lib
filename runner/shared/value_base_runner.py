@@ -23,8 +23,18 @@ class ValueBaseRunner(BaseRunner):
         else:
             raise NotImplementedError("Unknown value-based algorithm.")
         # TODO: 中央集権型価値関数を使わない場合の処理．self.mixer = Noneの時のtrainerの挙動を実装すれば良い
-        self.policy = Policy(self.all_args, self.obs_space, self.share_obs_space, self.action_space)
-        self.mixer = Mixer(self.all_args)
+        self.policy = Policy(
+            self.all_args,
+            self.obs_space,
+            self.share_obs_space,
+            self.action_space,
+        )
+        self.mixer = Mixer(
+            self.all_args,
+            self.obs_space,
+            self.share_obs_space,
+            self.action_space,
+        )
         self.trainer = Trainer(self.policy, self.mixer, self.all_args)
         self.buffer = ReplayBuffer(
             args=self.all_args,
@@ -37,10 +47,10 @@ class ValueBaseRunner(BaseRunner):
         self.action_dim = len(self.action_space)
         self.share_obs_dim = len(self.share_obs_space)
 
-    def collect(self, step):
+    def collect(self, obs, hidden_states, dones):
         # 1ステップ分のデータ収集
-        actions, next_hidden_states = self.policy.select_actions(
-            self.current_obs, self.current_hidden_states
+        actions, next_hidden_states = self.policy.get_actions(
+            obs, hidden_states, dones
         )
         return actions, next_hidden_states
 
@@ -50,7 +60,9 @@ class ValueBaseRunner(BaseRunner):
         # 必要なら初期観測をバッファや変数に保存
         self.initial_obs = obs.copy()
         # hidden stateの初期化も必要なら
-        self.initial_hidden_states = self.policy.init_hidden(batch_size=self.num_rollout_threads)
+        self.initial_hidden_states = self.policy.init_hidden(
+            self.num_rollout_threads
+        )
 
     def insert(self, episode_data):
         self.buffer.add(episode_data)

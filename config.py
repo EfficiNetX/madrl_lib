@@ -349,5 +349,16 @@ def get_config():
         default=64,
         help="RNNの隠れ状態の次元",
     )
-
+    parser.add_argument(
+        "--qmix_hypernet_layers",
+        type=int,
+        default=2,
+        help="QMIX用: ハイパーネットワークの層数",
+    )
+    parser.add_argument(
+        "--qmix_hypernet_embed_dim",
+        type=int,
+        default=64,
+        help="QMIX用: ハイパーネットワークの埋め込み次元（層数が2の場合に使用）",
+    )
     return parser

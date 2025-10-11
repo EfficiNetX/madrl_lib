@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from algorithms.utils.rnn import RNNLayer
 from utils.util import update_linear_schedule
+from typing import Tuple
 
 
 class QMIXPolicy:  # QMIXPoliciesにしたほうがわかりやすい可能性がある
@@ -27,14 +28,10 @@ class QMIXPolicy:  # QMIXPoliciesにしたほうがわかりやすい可能性�
             action_space
         )  # 行動の種類数(transfomer_policy.pyのaction_dimの定義に倣う)
 
-<<<<<<< Updated upstream
-        # Qネットワーク
         self.agent_q_network = RNNAgent(
-            self.obs_dim, self.qmix_rnn_hidden_dim, self.action_dim
+            self.obs_dim, self.qmix_rnn_hidden_dim, self.action_dim, self.args
         )
-=======
-        self.agent_q_network = RNNAgent(self.obs_dim, self.qmix_rnn_hidden_dim, self.action_dim)
->>>>>>> Stashed changes
+        self.agent_q_network.to(self.args.device)  # モデルをデバイスに移動
         self.epsilon = args.qmix_epsilon_start
 
         self.optimizer = torch.optim.Adam(
@@ -49,34 +46,31 @@ class QMIXPolicy:  # QMIXPoliciesにしたほうがわかりやすい可能性�
         データを集める場合
         obs: (num_rollout_threads, n_agents, obs_dim)
         hidden_states: (num_rollout_threads, n_agents, qmix_rnn_hidden_dim)
-        masks: (num_rollout_threads * n_agents, 1) # 1ならば有効
+        dones: (num_rollout_threads, n_agents, 1)
         学習をする場合
         obs: (qmix_batch_size, n_agents, obs_dim)
         hidden_states: (qmix_batch_size, n_agents, qmix_rnn_hidden_dim)
-        masks: (qmix_batch_size * n_agents, 1) # 1ならば有効
+        dones: (qmix_batch_size, n_agents, 1)
         """
         batch_size, n_agents, obs_dim = obs.shape
-        device = obs.device if hasattr(obs, "device") else "cpu"
         hxs = (
             hidden_states
             if hidden_states is not None
             else torch.zeros(
-                batch_size * n_agents, self.qmix_rnn_hidden_dim, device=device
+                batch_size, n_agents, self.qmix_rnn_hidden_dim, device=self.args.device
             )
         )
-        mask = (
+        dones = (
             dones
             if dones is not None
-            else torch.zeros(batch_size * n_agents, 1, device=device)
+            else torch.zeros(batch_size, n_agents, 1, device=self.args.device)
         )
         q_values, next_hxs = self.agent_q_network(
-            obs.reshape(batch_size * n_agents, obs_dim), hxs, mask
-        )  # q_values: (batch_size * n_agents, action_space)
-        q_values = q_values.view(batch_size, n_agents, self.action_space)
-        next_hxs = next_hxs.view(
-            batch_size, n_agents, self.qmix_rnn_hidden_dim
-        )
-        return q_values, next_hxs
+            obs, hxs, dones
+        )  # q_values: (batch_size * n_agents, action_dim)
+        q_values = q_values.view(batch_size, n_agents, self.action_dim)
+        next_hxs = next_hxs.view(batch_size, n_agents, self.qmix_rnn_hidden_dim)
+        return q_values, next_hxs  # type: Tuple[torch.Tensor, torch.Tensor]
 
     def get_actions(
         self,
@@ -85,14 +79,16 @@ class QMIXPolicy:  # QMIXPoliciesにしたほうがわかりやすい可能性�
         dones=None,
         epsilon=None,
         deterministic=False,
-    ):
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         データを集める時にしか使わないため，batch_sizeはnum_rollout_threadsと一致する
         obs: (batch_size, n_agents, obs_dim)
         hidden_states: (batch_size, n_agents, qmix_rnn_hidden_dim)
-        masks: (batch_size * n_agents, 1) # 1ならば有効
+        dones: (batch_size * n_agents, 1)
         epsilon: (float) ε-greedyのε
         """
+        assert type(obs) is torch.Tensor, "obs should be a torch.Tensor"
+        assert type(hidden_states) is torch.Tensor, "hidden_states should be a torch.Tensor"
         if epsilon is None:
             epsilon = self.epsilon  # TODO: epsilon関係の実装を整理する
         q_values, next_hidden_states = self.forward(obs, hidden_states, dones)
@@ -100,49 +96,58 @@ class QMIXPolicy:  # QMIXPoliciesにしたほうがわかりやすい可能性�
             actions = torch.argmax(q_values, dim=-1)  # (batch_size, n_agents)
         else:
             batch_size, n_agents, action_dim = q_values.shape
-            random_numbers = torch.rand(batch_size, n_agents).to(
-                q_values.device
-            )
+            random_numbers = torch.rand(batch_size, n_agents).to(q_values.device)
             random_actions = torch.randint(
                 0, action_dim, (batch_size, n_agents), device=q_values.device
             )
-            greedy_actions = torch.argmax(
-                q_values, dim=-1
-            )  # (batch_size, n_agents)
+            greedy_actions = torch.argmax(q_values, dim=-1)  # (batch_size, n_agents)
             actions = torch.where(
                 random_numbers < epsilon, random_actions, greedy_actions
             )  # (batch_size, n_agents)
+            actions = actions.view(batch_size, n_agents, 1)  # (batch_size, n_agents, 1)
         return actions, next_hidden_states
 
     def lr_decay(self, episode, total_episodes):
-        update_linear_schedule(
-            self.optimizer, episode, total_episodes, self.lr
-        )
+        update_linear_schedule(self.optimizer, episode, total_episodes, self.lr)
 
     def init_hidden(self, batch_size):
 
         return torch.zeros(
-            batch_size, self.args.n_agents, self.qmix_rnn_hidden_dim
+            batch_size, self.args.num_agents, self.qmix_rnn_hidden_dim, device=self.args.device
         )
 
 
 class RNNAgent(nn.Module):  # エージェントのQネットワーク. 入力次元はobs_dim, 出力次元はaction_dim
-    def __init__(self, obs_dim, rnn_hidden_dim, actions_dim):
+    def __init__(self, obs_dim, rnn_hidden_dim, actions_dim, args):
         super(RNNAgent, self).__init__()
         self.fc1 = nn.Linear(obs_dim, rnn_hidden_dim)  # 線形層
         self.rnn = nn.GRUCell(rnn_hidden_dim, rnn_hidden_dim)  # GRU層
         self.fc2 = nn.Linear(rnn_hidden_dim, actions_dim)  # 線形層
         self.rnn_hidden_dim = rnn_hidden_dim
+        self.args = args
 
-    def init_hidden(self):
-        # make hidden states on same device as model
-        return torch.zeros(1, self.rnn_hidden_dim)
-
-    def forward(self, inputs, hidden_state, mask=None):  # mask: 1ならば有効
-        x = F.relu(self.fc1(inputs))
-        h_in = hidden_state.reshape(-1, self.rnn_hidden_dim)
-        if mask is not None:
-            h_in = h_in * mask
-        h = self.rnn(x, h_in)
+    def forward(self, obs, hidden_states, dones):  # dones: 1ならばエピソード終わり
+        # obs,hidden_statesをreshapeしてRNNに入力できる形に変換し、RNNの出力を元の形に戻す
+        # 入力値の一部を表示
+        # tensorの形状を変換
+        batch_size, n_agents, obs_dim = obs.shape
+        obs = obs.reshape(batch_size * n_agents, obs_dim)
+        hxs = (
+            hidden_states.reshape(batch_size * n_agents, self.args.qmix_rnn_hidden_dim)
+            if hidden_states is not None
+            else torch.zeros(
+                batch_size * n_agents, self.args.qmix_rnn_hidden_dim, device=self.args.device
+            )
+        )
+        dones = (
+            dones.reshape(batch_size * n_agents, 1)
+            if dones is not None
+            else torch.zeros(batch_size * n_agents, 1, device=self.args.device)
+        )
+        x = F.relu(self.fc1(obs))
+        hxs = hxs * (1 - dones.float())
+        h = self.rnn(x, hxs)
         q = self.fc2(h)
+        h = h.view(batch_size, n_agents, self.args.qmix_rnn_hidden_dim)
+        q = q.view(batch_size, n_agents, -1)  # (batch_size, n_agents, action_dim)次元に変換
         return q, h

@@ -23,13 +23,15 @@ class EpisodeReplayBuffer:
         self.episodes_in_buffer = 0  # バッファに保存されているエピソード数
         self.buffer_size = args.qmix_buffer_size
         self.batch_size = args.qmix_batch_size
+        self.share_obs_dim = len(share_obs_space)
+        self.obs_dim = len(obs_space)
 
         # バッファ本体
         self.share_obs = np.zeros(
             (
                 self.buffer_size,
                 self.episode_length + 1,
-                share_obs_space,
+                self.share_obs_dim,
             ),
             dtype=np.float32,
         )
@@ -38,7 +40,7 @@ class EpisodeReplayBuffer:
                 self.buffer_size,
                 self.episode_length + 1,
                 self.num_agents,
-                obs_space,
+                self.obs_dim,
             ),
             dtype=np.float32,
         )
@@ -56,6 +58,7 @@ class EpisodeReplayBuffer:
                 self.buffer_size,
                 self.episode_length,
                 self.num_agents,
+                1,
             ),
             dtype=np.float32,
         )
@@ -67,7 +70,7 @@ class EpisodeReplayBuffer:
             ),
             dtype=bool,
         )
-        self.filled = np.zeros(
+        self.mask = np.zeros(
             (
                 self.buffer_size,
                 self.episode_length,
@@ -76,24 +79,12 @@ class EpisodeReplayBuffer:
         )
 
     def _assign_buffer(self, idx, episodes_data, offset=0):
-        self.share_obs[idx] = episodes_data["share_obs"][
-            offset : offset + idx.stop - idx.start
-        ]
-        self.obs[idx] = episodes_data["obs"][
-            offset : offset + idx.stop - idx.start
-        ]
-        self.actions[idx] = episodes_data["actions"][
-            offset : offset + idx.stop - idx.start
-        ]
-        self.rewards[idx] = episodes_data["rewards"][
-            offset : offset + idx.stop - idx.start
-        ]
-        self.dones[idx] = episodes_data["dones"][
-            offset : offset + idx.stop - idx.start
-        ]
-        self.filled[idx] = episodes_data["filled"][
-            offset : offset + idx.stop - idx.start
-        ]
+        self.share_obs[idx] = episodes_data["share_obs"][offset : offset + idx.stop - idx.start]
+        self.obs[idx] = episodes_data["obs"][offset : offset + idx.stop - idx.start]
+        self.actions[idx] = episodes_data["actions"][offset : offset + idx.stop - idx.start]
+        self.rewards[idx] = episodes_data["rewards"][offset : offset + idx.stop - idx.start]
+        self.dones[idx] = episodes_data["dones"][offset : offset + idx.stop - idx.start]
+        self.mask[idx] = episodes_data["mask"][offset : offset + idx.stop - idx.start]
 
     def insert(self, episodes_data):
         """
@@ -102,24 +93,18 @@ class EpisodeReplayBuffer:
                 "share_obs": (num_envs, episode_length + 1, num_agents, share_obs_dim)
                 "obs": (num_envs, episode_length + 1, num_agents, obs_dim)
                 "actions": (num_envs, episode_length, num_agents, 1)
-                "rewards": (num_envs, episode_length, num_agents)
+                "rewards": (num_envs, episode_length, num_agents, 1)
                 "dones": (num_envs, episode_length, num_agents)
-                "filled": (num_envs, episode_length)
+                "mask": (num_envs, episode_length)
             }
         """
         if self.buffer_index + self.num_rollout_threads <= self.buffer_size:
-            idx = slice(
-                self.buffer_index, self.buffer_index + self.num_rollout_threads
-            )
+            idx = slice(self.buffer_index, self.buffer_index + self.num_rollout_threads)
             self._assign_buffer(idx, episodes_data)
             self.buffer_index += self.num_rollout_threads
-            self.episodes_in_buffer = max(
-                self.episodes_in_buffer, self.buffer_index
-            )
+            self.episodes_in_buffer = max(self.episodes_in_buffer, self.buffer_index)
         else:
-            overflow = (
-                self.buffer_index + self.num_rollout_threads - self.buffer_size
-            )
+            overflow = self.buffer_index + self.num_rollout_threads - self.buffer_size
             idx_first = slice(self.buffer_index, self.buffer_size)
             idx_second = slice(0, overflow)
             self._assign_buffer(idx_first, episodes_data, offset=0)
@@ -134,16 +119,13 @@ class EpisodeReplayBuffer:
         return self.episodes_in_buffer >= self.batch_size
 
     def sample(self, batch_size):
-        assert self.can_sample(batch_size)
-        indices = np.random.choice(
-            self.episodes_in_buffer, batch_size, replace=False
-        )
+        indices = np.random.choice(self.episodes_in_buffer, batch_size, replace=False)
         batch = dict(
             share_obs=self.share_obs[indices],
             obs=self.obs[indices],
             actions=self.actions[indices],
             rewards=self.rewards[indices],
             dones=self.dones[indices],
-            filled=self.filled[indices],
+            mask=self.mask[indices],
         )
         return batch

@@ -361,4 +361,10 @@ def get_config():
         default=64,
         help="QMIX用: ハイパーネットワークの埋め込み次元（層数が2の場合に使用）",
     )
+    parser.add_argument(
+        "--qmix_gamma",
+        type=float,
+        default=0.99,
+        help="QMIX用: 割引率",
+    )
     return parser

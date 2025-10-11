@@ -1,6 +1,7 @@
 import time
 from runner.shared.value_base_runner import ValueBaseRunner
 import numpy as np
+import torch
 
 
 class ValueMainRunner(ValueBaseRunner):
@@ -12,13 +13,10 @@ class ValueMainRunner(ValueBaseRunner):
         super().__init__(config)
 
     def run(self):
-        episodes = (
-            int(self.num_env_steps)
-            // self.episode_length
-            // self.num_rollout_threads
-        )
+        episodes = int(self.num_env_steps) // self.episode_length // self.num_rollout_threads
 
         for episode in range(episodes):
+            print(f"Episode {episode}/{episodes}")
             # TODO : 学習率の減衰
             """
             if self.use_linear_lr_decay:
@@ -26,66 +24,73 @@ class ValueMainRunner(ValueBaseRunner):
             """
             # バッファに保存するための辞書
             # TODO: episode_dataのクラス化
-            # TODO: episode_lengthよりも早く終わった場合の処理
+            # TODO: episode_lengthよりも早く終わった場合の処理(データの保存部分をもっとbufferにまかせてもよいかもしれない)
             episode_data = {
-                "obs": np.zeros(
-                    (
-                        self.num_rollout_threads,
-                        self.episode_length + 1,
-                        self.n_agents,
-                        self.obs_dim,
-                    ),
-                    dtype=np.float32,
+                "obs": torch.zeros(
+                    self.num_rollout_threads,
+                    self.episode_length + 1,
+                    self.num_agents,
+                    self.obs_dim,
+                    dtype=torch.float32,
                 ),
-                "rewards": np.zeros(
-                    (
-                        self.num_rollout_threads,
-                        self.episode_length,
-                        self.n_agents,
-                    ),
-                    dtype=np.float32,
+                "rewards": torch.zeros(
+                    self.num_rollout_threads,
+                    self.episode_length,
+                    self.num_agents,
+                    1,
+                    dtype=torch.float32,
                 ),
-                "dones": np.zeros(
-                    (
-                        self.num_rollout_threads,
-                        self.episode_length,
-                        self.n_agents,
-                    ),
-                    dtype=bool,
+                "dones": torch.zeros(
+                    self.num_rollout_threads,
+                    self.episode_length,
+                    self.num_agents,
+                    dtype=torch.bool,
                 ),
-                "actions": np.zeros(
-                    (
-                        self.num_rollout_threads,
-                        self.episode_length,
-                        self.n_agents,
-                        1,
-                    ),
-                    dtype=np.int,
+                "actions": torch.zeros(
+                    self.num_rollout_threads,
+                    self.episode_length,
+                    self.num_agents,
+                    1,
+                    dtype=torch.int64,
                 ),
-                "filled": np.zeros(
-                    (self.num_rollout_threads, self.episode_length),
-                    dtype=bool,
-                ),
+                "mask": torch.ones(
+                    self.num_rollout_threads, self.episode_length, dtype=torch.bool
+                ),  # (num_rollout_threads, episode_length) (bool)
             }
             # 環境をリセットして初期観測を取得 && hidden stateの初期化
-            obs = self.envs.reset()
-            hidden_states = self.policy.init_hidden(self.num_rollout_threads)
+            obs = self.envs.reset()  # Numpy配列 (num_rollout_threads, num_agents, obs_dim)
+            assert type(obs) is np.ndarray, "obs should be a numpy.ndarray"
+            obs = torch.from_numpy(obs).float().to(self.all_args.device)
+            hidden_states = self.policy.init_hidden(
+                self.num_rollout_threads
+            )  # Tensor (num_rollout_threads, num_agents, hidden_dim)
             # 1エピソードのデータ収集
-            dones = np.zeros((self.num_rollout_threads, self.n_agents, 1))
+            dones = torch.zeros(
+                (self.num_rollout_threads, self.num_agents, 1), dtype=torch.bool
+            ).to(self.all_args.device)
+            episode_data["mask"][:, 0] = torch.zeros(
+                (self.num_rollout_threads,), dtype=torch.bool
+            ).to(
+                self.all_args.device
+            )  # エピソード開始直後はすべての環境が未終了なのでmaskはFalse
             for step in range(self.episode_length):
+                print("Step:", step)
                 episode_data["obs"][:, step] = obs
-                actions, next_hidden_states = self.collect(
-                    obs, hidden_states, dones
-                )
+                # obsをTensorに変換
+                actions, next_hidden_states = self.collect(obs, hidden_states, dones)
                 episode_data["actions"][:, step] = actions
-                next_obs, rewards, dones, info = self.envs.step(actions)
-                episode_data["rewards"][:, step, 0] = rewards
-                episode_data["dones"][:, step] = dones
-                episode_data["filled"][:, step, 0] = True
+                actions = actions.cpu().numpy()  # (num_rollout_threads, num_agents, 1)
+                next_obs, rewards, dones = self.envs.step(actions)  # 返り値はNumpy配列
+                next_obs = torch.from_numpy(next_obs).float().to(self.all_args.device)
+                rewards = torch.from_numpy(rewards).float().to(self.all_args.device)
+                dones = torch.from_numpy(dones).bool().to(self.all_args.device)
+                episode_data["rewards"][:, step] = rewards
+                if step + 1 < self.episode_length:
+                    episode_data["mask"][:, step + 1] = dones.all(dim=1)  # (num_rollout_threads,)
 
                 obs = next_obs
                 hidden_states = next_hidden_states
-                if dones.any():
+                if dones.all():  # すべての環境が終了したらエピソード終了
                     break
 
             # ループ終了後の最後の状態を保存
@@ -94,6 +99,7 @@ class ValueMainRunner(ValueBaseRunner):
             self.insert(episode_data)
             # バッチ数分のデータが溜まったら学習を行う
             if self.can_sample():
+                print("Training...")
                 episode_samples = self.sample()
                 self.train(episode_samples)
 
@@ -104,8 +110,6 @@ class ValueMainRunner(ValueBaseRunner):
         # obsからshare_obsを取得してepisode_dataに追加
         # TODO: 必要ならば，obsを共有しない場合の分岐を実装する
         share_obs = episode_data["obs"]
-        share_obs = share_obs.reshape(
-            self.num_rollout_threads, self.episode_length + 1, -1
-        )
+        share_obs = share_obs.reshape(self.num_rollout_threads, self.episode_length + 1, -1)
         episode_data["share_obs"] = share_obs
         self.buffer.insert(episode_data)

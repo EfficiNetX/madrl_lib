@@ -1,4 +1,6 @@
 from runner.shared.base_runner import BaseRunner
+from typing import Tuple
+import torch
 
 
 class ValueBaseRunner(BaseRunner):
@@ -25,23 +27,8 @@ class ValueBaseRunner(BaseRunner):
         else:
             raise NotImplementedError("Unknown value-based algorithm.")
         # TODO: 中央集権型価値関数を使わない場合の処理．self.mixer = Noneの時のtrainerの挙動を実装すれば良い
-<<<<<<< Updated upstream
-        self.policy = Policy(
-            self.all_args,
-            self.obs_space,
-            self.share_obs_space,
-            self.action_space,
-        )
-        self.mixer = Mixer(
-            self.all_args,
-            self.obs_space,
-            self.share_obs_space,
-            self.action_space,
-        )
-=======
         self.policy = Policy(self.all_args, self.obs_space, self.share_obs_space, self.action_space)
         self.mixer = Mixer(self.all_args, self.obs_space, self.share_obs_space, self.action_space)
->>>>>>> Stashed changes
         self.trainer = Trainer(self.policy, self.mixer, self.all_args)
         self.buffer = ReplayBuffer(
             args=self.all_args,
@@ -54,11 +41,9 @@ class ValueBaseRunner(BaseRunner):
         self.action_dim = len(self.action_space)
         self.share_obs_dim = len(self.share_obs_space)
 
-    def collect(self, obs, hidden_states, dones):
+    def collect(self, obs, hidden_states, dones) -> Tuple[torch.Tensor, torch.Tensor]:
         # 1ステップ分のデータ収集
-        actions, next_hidden_states = self.policy.get_actions(
-            obs, hidden_states, dones
-        )
+        actions, next_hidden_states = self.policy.get_actions(obs, hidden_states, dones)
         return actions, next_hidden_states
 
     def warmup(self):
@@ -67,9 +52,7 @@ class ValueBaseRunner(BaseRunner):
         # 必要なら初期観測をバッファや変数に保存
         self.initial_obs = obs.copy()
         # hidden stateの初期化も必要なら
-        self.initial_hidden_states = self.policy.init_hidden(
-            self.num_rollout_threads
-        )
+        self.initial_hidden_states = self.policy.init_hidden(self.num_rollout_threads)
 
     def insert(self, episode_data):
         self.buffer.add(episode_data)

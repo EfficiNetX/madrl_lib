@@ -127,16 +127,3 @@ class QMIXTrainer:
             self.target_mixer.load_state_dict(self.mixer.state_dict())
         if self.logger is not None:
             self.logger.console_logger.info("Updated target network")
-
-    # TODO: 学習モードと推論モードの切り替え関数を書く
-    """
-    学習モードと推論モードの切り替え
-    def prep_rollout(self):
-        self.policy.eval()
-        self.mixer.eval()
-
-    def prep_training(self):
-        self.policy.train()
-        self.mixer.train()
-
-    """

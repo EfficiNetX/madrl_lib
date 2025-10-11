@@ -17,14 +17,6 @@ class ValueMainRunner(ValueBaseRunner):
 
         for episode in range(episodes):
             print(f"Episode {episode}/{episodes}")
-            # TODO : 学習率の減衰
-            """
-            if self.use_linear_lr_decay:
-                self.trainer.policy.lr_decay(episode, episodes)
-            """
-            # バッファに保存するための辞書
-            # TODO: episode_dataのクラス化
-            # TODO: episode_lengthよりも早く終わった場合の処理(データの保存部分をもっとbufferにまかせてもよいかもしれない)
             episode_data = {
                 "obs": torch.zeros(
                     self.num_rollout_threads,
@@ -59,7 +51,6 @@ class ValueMainRunner(ValueBaseRunner):
             }
             # 環境をリセットして初期観測を取得 && hidden stateの初期化
             obs = self.envs.reset()  # Numpy配列 (num_rollout_threads, num_agents, obs_dim)
-            assert type(obs) is np.ndarray, "obs should be a numpy.ndarray"
             obs = torch.from_numpy(obs).float().to(self.all_args.device)
             hidden_states = self.policy.init_hidden(
                 self.num_rollout_threads

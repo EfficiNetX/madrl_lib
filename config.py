@@ -367,4 +367,22 @@ def get_config():
         default=0.99,
         help="QMIX用: 割引率",
     )
+    parser.add_argument(
+        "--qmix_epsilon_start",
+        type=float,
+        default=1.0,
+        help="QMIX用: ε-greedy探索の初期値",
+    )
+    parser.add_argument(
+        "--qmix_epsilon_finish",
+        type=float,
+        default=0.05,
+        help="QMIX用: ε-greedy探索の最終値",
+    )
+    parser.add_argument(
+        "--qmix_epsilon_anneal_time",
+        type=int,
+        default=50000,
+        help="QMIX用: εを減衰させるステップ数",
+    )
     return parser

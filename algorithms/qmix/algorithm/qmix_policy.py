@@ -77,7 +77,6 @@ class QMIXPolicy:  # QMIXPoliciesにしたほうがわかりやすい可能性�
         obs,
         hidden_states=None,
         dones=None,
-        epsilon=None,
         deterministic=False,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -89,8 +88,6 @@ class QMIXPolicy:  # QMIXPoliciesにしたほうがわかりやすい可能性�
         """
         assert type(obs) is torch.Tensor, "obs should be a torch.Tensor"
         assert type(hidden_states) is torch.Tensor, "hidden_states should be a torch.Tensor"
-        if epsilon is None:
-            epsilon = self.epsilon  # TODO: epsilon関係の実装を整理する
         q_values, next_hidden_states = self.forward(obs, hidden_states, dones)
         if deterministic:
             actions = torch.argmax(q_values, dim=-1)  # (batch_size, n_agents)
@@ -102,18 +99,22 @@ class QMIXPolicy:  # QMIXPoliciesにしたほうがわかりやすい可能性�
             )
             greedy_actions = torch.argmax(q_values, dim=-1)  # (batch_size, n_agents)
             actions = torch.where(
-                random_numbers < epsilon, random_actions, greedy_actions
+                random_numbers < self.epsilon, random_actions, greedy_actions
             )  # (batch_size, n_agents)
             actions = actions.view(batch_size, n_agents, 1)  # (batch_size, n_agents, 1)
         return actions, next_hidden_states
-
-    def lr_decay(self, episode, total_episodes):
-        update_linear_schedule(self.optimizer, episode, total_episodes, self.lr)
 
     def init_hidden(self, batch_size):
 
         return torch.zeros(
             batch_size, self.args.num_agents, self.qmix_rnn_hidden_dim, device=self.args.device
+        )
+
+    def update_epsilon(self, t_env):
+        self.epsilon = max(
+            self.args.qmix_epsilon_final,
+            self.args.qmix_epsilon_start * (1 - t_env / self.args.qmix_epsilon_anneal_time)
+            + self.args.qmix_epsilon_final * (t_env / self.args.qmix_epsilon_anneal_time),
         )
 
 

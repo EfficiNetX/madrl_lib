@@ -1,3 +1,4 @@
+import importlib
 from runner.shared.base_runner import BaseRunner
 from typing import Tuple
 import torch
@@ -40,6 +41,10 @@ class ValueBaseRunner(BaseRunner):
         self.obs_dim = len(self.obs_space)
         self.action_dim = len(self.action_space)
         self.share_obs_dim = len(self.share_obs_space)
+
+        user_name = config["args"].user_name
+        visualizeClass = importlib.import_module(f"envs.{user_name}.{user_name}_visualize")
+        self.visualizer = getattr(visualizeClass, "visualizer")
 
     def collect(self, obs, hidden_states, dones) -> Tuple[torch.Tensor, torch.Tensor]:
         # 1ステップ分のデータ収集

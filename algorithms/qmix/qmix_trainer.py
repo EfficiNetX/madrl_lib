@@ -102,7 +102,9 @@ class QMIXTrainer:
         # rewards (batch, episode_length, num_agents,1)を、(batch,episode_length,1)にする
         rewards = rewards.sum(dim=2)  # (batch_size, episode_length, 1)
         # 各バッチごとのTD誤差を計算
-        target = rewards + self.args.qmix_gamma * mixed_target_max_qvals * mask.unsqueeze(-1)
+        # If any agent is not done, mask should be 1 (i.e., not all done)
+        not_all_done = (~dones).any(dim=2, keepdim=True).float()  # (batch, episode_length, 1)
+        target = rewards + self.args.qmix_gamma * mixed_target_max_qvals * not_all_done
         td_errors = mixed_chosen_action_qvals - target.detach()
         # 1ステップのTD誤差の２乗の平均値を取得する
         loss = (td_errors**2 * (~mask).unsqueeze(-1)).sum() / (~mask).sum()

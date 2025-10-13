@@ -13,10 +13,16 @@ class ValueMainRunner(ValueBaseRunner):
         super().__init__(config)
 
     def run(self):
-        episodes = int(self.num_env_steps) // self.episode_length // self.num_rollout_threads
-
-        for episode in range(episodes):
-            print(f"Episode {episode}/{episodes}")
+        t_env = 0  # 環境ステップ数のカウンタ
+        episode = 0  # エピソード数のカウンタ
+        while t_env < self.num_env_steps:
+            episode += 1
+            # epsilonの線形減衰
+            self.trainer.policy.update_epsilon(t_env)
+            print("epsilon:", self.trainer.policy.epsilon)
+            print(f"Step {t_env}/{self.num_env_steps}")
+            # visualize用にデータを保存するリストを定義
+            obs_list, reward_list, action_list = [], [], []
             episode_data = {
                 "obs": torch.zeros(
                     self.num_rollout_threads,
@@ -67,17 +73,21 @@ class ValueMainRunner(ValueBaseRunner):
             for step in range(self.episode_length):
                 print("Step:", step)
                 episode_data["obs"][:, step] = obs
+                obs_list.append(obs[0].cpu().numpy())  # visualize用に保存
                 # obsをTensorに変換
                 actions, next_hidden_states = self.collect(obs, hidden_states, dones)
                 episode_data["actions"][:, step] = actions
                 actions = actions.cpu().numpy()  # (num_rollout_threads, num_agents, 1)
-                next_obs, rewards, dones = self.envs.step(actions)  # 返り値はNumpy配列
+                next_obs, rewards, dones = self.envs.step(actions)  # 入力値、返り値はNumpy配列
+                reward_list.append(rewards[0])  # visualize用に保存
+                action_list.append(actions[0])  # visualize用に保存
                 next_obs = torch.from_numpy(next_obs).float().to(self.all_args.device)
                 rewards = torch.from_numpy(rewards).float().to(self.all_args.device)
                 dones = torch.from_numpy(dones).bool().to(self.all_args.device)
                 episode_data["rewards"][:, step] = rewards
                 if step + 1 < self.episode_length:
                     episode_data["mask"][:, step + 1] = dones.all(dim=1)  # (num_rollout_threads,)
+                t_env += self.num_rollout_threads - episode_data["mask"][:, step].sum().item()
 
                 obs = next_obs
                 hidden_states = next_hidden_states
@@ -95,7 +105,20 @@ class ValueMainRunner(ValueBaseRunner):
                 self.train(episode_samples)
 
             if episode % self.log_interval == 0:
-                print(f"Episode {episode}/{episodes}")
+                print(f"Episode {episode}")
+
+                self.visualizer(
+                    episode=episode,
+                    obs_list=obs_list,
+                    reward_list=reward_list,
+                    action_list=action_list,
+                )
+
+            print(obs_list[0:2])
+            print(reward_list[0:2])
+            print(action_list[0:2])
+
+            exit()
 
     def insert(self, episode_data):
         # obsからshare_obsを取得してepisode_dataに追加

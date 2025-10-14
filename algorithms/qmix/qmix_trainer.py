@@ -17,8 +17,10 @@ class QMIXTrainer:
 
         self.last_target_update_episode = 0
         self.qmix_target_update_interval = args.qmix_target_update_interval
-
-    # TODO: 学習率減衰関数を書く
+        self.log_interval = args.log_interval
+        self.learned_steps = 0
+        self.loss_list = []
+        self.reward_list = []
 
     def train(self, episode_batch):
         """
@@ -30,6 +32,7 @@ class QMIXTrainer:
             - 'dones': (batch_size, episode_length, n_agents)
             - 'mask': (batch_size, episode_length) # パディングされていない部分を示すマスク 1ならば有効 0ならば無効
         """
+        self.learned_steps += 1
         # numpy -> torch.Tensor
         share_obs = torch.tensor(
             episode_batch["share_obs"],
@@ -108,6 +111,20 @@ class QMIXTrainer:
         td_errors = mixed_chosen_action_qvals - target.detach()
         # 1ステップのTD誤差の２乗の平均値を取得する
         loss = (td_errors**2 * (~mask).unsqueeze(-1)).sum() / (~mask).sum()
+        if self.learned_steps % self.log_interval == 0:
+            print("TD Loss:", loss.item())
+        # あとでpythonでvisualize化できるようにtxtにログを保存
+        # 20回ごとのloss1の平均を保存
+        self.loss_list.append(loss.item())
+        self.reward_list.append(rewards.sum().item() / rewards.shape[0])
+
+        if self.learned_steps % 20 == 0:
+            avg_loss = sum(self.loss_list) / len(self.loss_list)
+            avg_reward = sum(self.reward_list) / len(self.reward_list)
+            with open("loss_log.txt", "a") as f:
+                f.write(f"{self.learned_steps},{avg_loss},{avg_reward}\n")
+            self.loss_list = []
+            self.reward_list = []
 
         # 勾配を計算
         self.policy.optimizer.zero_grad()
@@ -117,10 +134,11 @@ class QMIXTrainer:
         # ターゲットネットワークの更新
         if (
             self.args.qmix_target_update_interval > 0
-            and (self.episode_num - self.last_target_update_episode)
+            and (self.learned_steps - self.last_target_update_episode)
             >= self.qmix_target_update_interval
         ):
-            self.last_target_update_episode = self.episode_num
+            print("Updated target network")
+            self.last_target_update_episode = self.learned_steps
             self._update_targets()
 
     def _update_targets(self):

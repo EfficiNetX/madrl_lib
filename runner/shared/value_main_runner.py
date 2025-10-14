@@ -16,11 +16,9 @@ class ValueMainRunner(ValueBaseRunner):
         t_env = 0  # 環境ステップ数のカウンタ
         episode = 0  # エピソード数のカウンタ
         while t_env < self.num_env_steps:
-            episode += 1
+            episode += self.num_rollout_threads
             # epsilonの線形減衰
             self.trainer.policy.update_epsilon(t_env)
-            print("epsilon:", self.trainer.policy.epsilon)
-            print(f"Step {t_env}/{self.num_env_steps}")
             # visualize用にデータを保存するリストを定義
             obs_list, reward_list, action_list = [], [], []
             episode_data = {
@@ -71,14 +69,24 @@ class ValueMainRunner(ValueBaseRunner):
                 self.all_args.device
             )  # エピソード開始直後はすべての環境が未終了なのでmaskはFalse
             for step in range(self.episode_length):
-                print("Step:", step)
                 episode_data["obs"][:, step] = obs
                 obs_list.append(obs[0].cpu().numpy())  # visualize用に保存
                 # obsをTensorに変換
                 actions, next_hidden_states = self.collect(obs, hidden_states, dones)
                 episode_data["actions"][:, step] = actions
                 actions = actions.cpu().numpy()  # (num_rollout_threads, num_agents, 1)
-                next_obs, rewards, dones = self.envs.step(actions)  # 入力値、返り値はNumpy配列
+                # one-hot化
+                num_actions = (
+                    self.envs.action_space[0].__len__()
+                    if hasattr(self.envs.action_space[0], "__len__")
+                    else len(self.envs.action_space[0])
+                )
+                actions_onehot = np.eye(num_actions)[
+                    actions.squeeze(-1)
+                ]  # (num_rollout_threads, num_agents, num_actions)
+                next_obs, rewards, dones = self.envs.step(
+                    actions_onehot
+                )  # 入力値、返り値はNumpy配列
                 reward_list.append(rewards[0])  # visualize用に保存
                 action_list.append(actions[0])  # visualize用に保存
                 next_obs = torch.from_numpy(next_obs).float().to(self.all_args.device)
@@ -86,7 +94,9 @@ class ValueMainRunner(ValueBaseRunner):
                 dones = torch.from_numpy(dones).bool().to(self.all_args.device)
                 episode_data["rewards"][:, step] = rewards
                 if step + 1 < self.episode_length:
-                    episode_data["mask"][:, step + 1] = dones.all(dim=1)  # (num_rollout_threads,)
+                    episode_data["mask"][:, step + 1] = dones.all(
+                        dim=1
+                    )  # (           num_rollout_threads,)
                 t_env += self.num_rollout_threads - episode_data["mask"][:, step].sum().item()
 
                 obs = next_obs
@@ -100,9 +110,11 @@ class ValueMainRunner(ValueBaseRunner):
             self.insert(episode_data)
             # バッチ数分のデータが溜まったら学習を行う
             if self.can_sample():
-                print("Training...")
                 episode_samples = self.sample()
                 self.train(episode_samples)
+
+            if episode * 10 % self.log_interval == 0:
+                print(f"Step {t_env}/{self.num_env_steps}")
 
             if episode % self.log_interval == 0:
                 print(f"Episode {episode}")
@@ -113,12 +125,6 @@ class ValueMainRunner(ValueBaseRunner):
                     reward_list=reward_list,
                     action_list=action_list,
                 )
-
-            print(obs_list[0:2])
-            print(reward_list[0:2])
-            print(action_list[0:2])
-
-            exit()
 
     def insert(self, episode_data):
         # obsからshare_obsを取得してepisode_dataに追加

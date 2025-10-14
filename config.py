@@ -310,8 +310,8 @@ def get_config():
     parser.add_argument(
         "--qmix_target_update_interval",
         type=int,
-        default=200,
-        help="QMIX用: ターゲットネットワークの更新間隔（ステップ数）",
+        default=2000,
+        help="QMIX用: ターゲットネットワークの更新間隔（学習回数）",
     )
     parser.add_argument(
         "--qmix_epsilon_start",
@@ -368,3 +368,11 @@ def get_config():
         help="QMIX用: 割引率",
     )
     return parser
+
+
+# 試行１: uv run python main.py --log_interval=1000 --lr=5e-8 --num_env_steps=20000000 --num_rollout_threads=48
+# 結果: うまくいかず　イプシロンが減衰しきった後の学習が進まない　おそらくepisode_lengthが短すぎてゴールまでたどり着けていない
+# uv run python main.py --log_interval=100 --num_env_steps=100000000 --num_rollout_threads=32 --qmix_epsilon_anneal_time=75000000 --episode_length=100
+# 結果: うまくいかず　急にLossが２０から４００に増大した。おそらく、target networkの更新が早すぎるのでは？
+# target networkの更新間隔を100から2000に変更
+# uv run python main.py --log_interval=1000 --num_env_steps=100000000 --num_rollout_threads=32 --qmix_epsilon_anneal_time=75000000 --episode_length=100 --lr=5e-8

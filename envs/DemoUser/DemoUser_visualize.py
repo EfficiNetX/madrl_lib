@@ -74,28 +74,25 @@ def visualizer(
             x, y = coors[i * 2], coors[i * 2 + 1]
             ax.plot(x, y, "o", color=agent_colors[i], markersize=20)
             # 報酬の値を表示（t>0のときのみ）
-            if t > 0:
-                reward = (
-                    reward_list[t - 1][i][0]
-                    if isinstance(reward_list[t - 1][i], (list, np.ndarray))
-                    else reward_list[t - 1][i]
+            # 矢印・バツの描画
+            if t < len(action_list):
+                print(f"Step {t}, Agent {i}, Action {action_list[t][i][0]}")
+                visualize_action(ax, x, y, action_list[t][i][0])
+                visualize_reward(
+                    ax,
+                    x,
+                    y,
+                    reward_list[t][i][0],
+                    color="blue" if reward_list[t][i][0] >= 0 else "red",
                 )
-                visualize_reward(ax, x, y, reward, agent_colors[i])
-                # 矢印・バツの描画
-                action = (
-                    action_list[t - 1][i][0]
-                    if action_list[t - 1][i].ndim == 1
-                    else action_list[t - 1][i]
-                )
-                if isinstance(action, np.ndarray):
-                    action = int(action)
-                visualize_action(ax, x, y, action)
 
         # フレーム保存
         plt.savefig(dir_name + f"/{t}.png")
         plt.close()
     # GIF作成
-    with imageio.get_writer(dir_name + f"/DemoUser.gif", duration=5.0) as writer:
+    with imageio.get_writer(
+        dir_name + f"/DemoUser.gif", duration=5.0
+    ) as writer:
         for t in range(len(obs_list) + 1):
             image = imageio.imread(dir_name + f"/{t}.png")
             writer.append_data(image)
@@ -104,26 +101,29 @@ def visualizer(
 
 
 def visualize_action(ax, x, y, action):
-    """Draw an arrow or X mark for the given action at (x, y) on ax."""
-    color = "black"
-    dx, dy = 0, 0
-    arrowprops = dict(facecolor=color, edgecolor=color, arrowstyle="->", lw=2)
-    if action == 0:
-        dx, dy = -0.7, 0
-        ax.annotate("", xy=(x + dx, y + dy), xytext=(x, y), arrowprops=arrowprops)
-    elif action == 1:
-        dx, dy = 0.7, 0
-        ax.annotate("", xy=(x + dx, y + dy), xytext=(x, y), arrowprops=arrowprops)
-    elif action == 2:
-        dx, dy = 0, -0.7
-        ax.annotate("", xy=(x + dx, y + dy), xytext=(x, y), arrowprops=arrowprops)
-    elif action == 3:
-        dx, dy = 0, 0.7
-        ax.annotate("", xy=(x + dx, y + dy), xytext=(x, y), arrowprops=arrowprops)
-    elif action == 4:
-        # バツ印
-        ax.plot([x - 0.3, x + 0.3], [y - 0.3, y + 0.3], color=color, lw=2)
-        ax.plot([x - 0.3, x + 0.3], [y + 0.3, y - 0.3], color=color, lw=2)
+    """(x, y)の位置に、actionに応じた矢印や記号をテキストで表示する"""
+
+    # アクションに対応する記号を定義
+    action_symbols = {
+        0: "←",  # 左
+        1: "→",  # 右
+        2: "↓",  # 下
+        3: "↑",  # 上
+        4: "×",  # バツ
+    }
+
+    symbol = action_symbols.get(action)
+
+    if symbol:
+        ax.text(
+            x,
+            y,
+            symbol,
+            ha="center",  # 水平方向の中央揃え
+            va="center",  # 垂直方向の中央揃え
+            fontsize=20,  # フォントサイズは適宜調整してください
+            color="black",
+        )
 
 
 def visualize_reward(ax, x, y, reward, color):

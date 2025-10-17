@@ -111,13 +111,17 @@ class ValueMainRunner(ValueBaseRunner):
             # バッチ数分のデータが溜まったら学習を行う
             if self.can_sample():
                 episode_samples = self.sample()
+                self.visualizer(
+                    episode=episode,
+                    obs_list=obs_list,
+                    reward_list=reward_list,
+                    action_list=action_list,
+                )
                 self.train(episode_samples)
 
-            if episode * 10 % self.log_interval == 0:
-                print(f"Step {t_env}/{self.num_env_steps}")
-
             if episode % self.log_interval == 0:
-                print(f"Episode {episode}")
+                print(f"Episode {episode} finished.")
+                print(f"finished step ratio: {t_env / self.num_env_steps}")
 
                 self.visualizer(
                     episode=episode,

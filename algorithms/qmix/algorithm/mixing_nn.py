@@ -54,6 +54,7 @@ class QMixer(nn.Module):
         batch_size = agent_qs.size(0)
         shared_obs = shared_obs.reshape(-1, self.shared_obs_dim)
         agent_qs = agent_qs.view(-1, 1, self.num_agents)
+        
 
         w1 = th.abs(self.hyper_w_1(shared_obs))
         b1 = self.hyper_b_1(shared_obs)

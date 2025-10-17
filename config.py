@@ -57,7 +57,7 @@ def get_config():
     parser.add_argument(
         "--num_env_steps",
         type=int,
-        default=10e6,
+        default=320e6,  # QMIXを動かすために10e6から320e6に変更
         help="訓練するステップ数",
     )
 
@@ -162,8 +162,8 @@ def get_config():
     parser.add_argument(
         "--lr",
         type=float,
-        default=5e-5,
-        help="learning rate (default: 5e-5)",
+        default=5e-7,  # QMIXを動かすために5e-5から5e-7に変更
+        help="learning rate (default: 5e-7)",
     )
     parser.add_argument(
         "--critic_lr",
@@ -285,7 +285,7 @@ def get_config():
     parser.add_argument(
         "--log_interval",
         type=int,
-        default=50,
+        default=2500,  # 50から2500に変更
         help="time duration between contiunous twice log printing.",
     )
 
@@ -298,7 +298,7 @@ def get_config():
     parser.add_argument(
         "--qmix_buffer_size",
         type=int,
-        default=5000,
+        default=10000,
         help="QMIX用: リプレイバッファの最大エピソード数",
     )
     parser.add_argument(
@@ -310,7 +310,7 @@ def get_config():
     parser.add_argument(
         "--qmix_target_update_interval",
         type=int,
-        default=2000,
+        default=1000,
         help="QMIX用: ターゲットネットワークの更新間隔（学習回数）",
     )
     parser.add_argument(
@@ -328,7 +328,7 @@ def get_config():
     parser.add_argument(
         "--qmix_epsilon_anneal_time",
         type=int,
-        default=5000000,
+        default=260e6,
         help="QMIX用: εを減衰させるステップ数",
     )
     parser.add_argument(
@@ -346,7 +346,7 @@ def get_config():
     parser.add_argument(
         "--qmix_rnn_hidden_dim",
         type=int,
-        default=64,
+        default=256,
         help="RNNの隠れ状態の次元",
     )
     parser.add_argument(

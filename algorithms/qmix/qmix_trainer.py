@@ -13,7 +13,6 @@ class QMIXTrainer:
         self.logger = logger
         self.target_policy = copy.deepcopy(policy)
         self.target_mixer = copy.deepcopy(mixer)
-        self.episode_num = 0  # 学習エピソード数
 
         self.last_target_update_episode = 0
         self.qmix_target_update_interval = args.qmix_target_update_interval
@@ -60,7 +59,6 @@ class QMIXTrainer:
             dtype=torch.bool,
             device=self.args.device,
         )  # (batch_size, episode_length)
-        self.episode_num += episode_batch["share_obs"].shape[0]
         # TD誤差を計算
         # ① 実際の行動のQ値を計算
         total_q_values = []
@@ -92,6 +90,7 @@ class QMIXTrainer:
             0
         ]  # (batch_size, episode_length, n_agents)
 
+        """
         # ③ ミキサーを用いて全体のQ値を計算
         if self.mixer is not None:
             mixed_chosen_action_qvals = self.mixer(chosen_action_qvals, share_obs[:, :-1])
@@ -99,8 +98,10 @@ class QMIXTrainer:
                 target_max_qvals, share_obs[:, 1:]
             )  # (batch_size, episode_length, 1)
         else:  # VDNの場合
-            mixed_chosen_action_qvals = chosen_action_qvals.sum(dim=2)
-            mixed_target_max_qvals = target_max_qvals.sum(dim=2)
+        """
+
+        mixed_chosen_action_qvals = chosen_action_qvals.sum(dim=2)
+        mixed_target_max_qvals = target_max_qvals.sum(dim=2)
 
         # rewards (batch, episode_length, num_agents,1)を、(batch,episode_length,1)にする
         rewards = rewards.sum(dim=2)  # (batch_size, episode_length, 1)
@@ -118,7 +119,7 @@ class QMIXTrainer:
         self.loss_list.append(loss.item())
         self.reward_list.append(rewards.sum().item() / rewards.shape[0])
 
-        if self.learned_steps % 20 == 0:
+        if self.learned_steps % 200 == 0:
             avg_loss = sum(self.loss_list) / len(self.loss_list)
             avg_reward = sum(self.reward_list) / len(self.reward_list)
             with open("loss_log.txt", "a") as f:
@@ -140,6 +141,17 @@ class QMIXTrainer:
             print("Updated target network")
             self.last_target_update_episode = self.learned_steps
             self._update_targets()
+
+        print("Showing Datas which are used for training:")
+        print("Episode:", self.learned_steps)
+        print("share_obs:", share_obs)
+        print("obs:", obs)
+        print("actions:", actions)
+        print("dones:", dones)
+        print("rewards:", rewards)
+        print("Loss:", loss.item())
+        print("Rewards:", rewards.sum().item() / rewards.shape[0])
+        exit()
 
     def _update_targets(self):
         self.target_policy.agent_q_network.load_state_dict(self.policy.agent_q_network.state_dict())

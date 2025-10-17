@@ -46,6 +46,7 @@ class World:
             [3, 5],
             [4, 5],
         ]
+        self.forbiddens = []  # Debug用に禁止エリアをなくす
         self.world_step = 0
 
     def step(

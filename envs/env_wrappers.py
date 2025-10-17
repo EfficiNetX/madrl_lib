@@ -108,6 +108,9 @@ def worker(
                     env.action_space,
                 )
             )
+        elif cmd == "get_avail_actions":
+            avail_actions = env.get_avail_actions()
+            remote.send(avail_actions)
         else:
             raise NotImplementedError
 
@@ -173,3 +176,9 @@ class SubprocVecEnv(ShareVecEnv):
             remote.send(("reset", None))
         obs = [remote.recv() for remote in self.remotes]
         return np.stack(obs)
+
+    def get_avail_actions(self):
+        for remote in self.remotes:
+            remote.send(("get_avail_actions", None))
+        avail_actions = [remote.recv() for remote in self.remotes]
+        return np.stack(avail_actions)

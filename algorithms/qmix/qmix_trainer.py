@@ -59,6 +59,11 @@ class QMIXTrainer:
             dtype=torch.bool,
             device=self.args.device,
         )  # (batch_size, episode_length)
+        avail_actions = torch.tensor(
+            episode_batch["avail_actions"],
+            dtype=torch.bool,
+            device=self.args.device,
+        )  # (batch_size, episode_length + 1, n_agents, action_dim)
         # TD誤差を計算
         # ① 実際の行動のQ値を計算
         total_q_values = []
@@ -89,6 +94,15 @@ class QMIXTrainer:
                 obs[:, t + 1], hidden_state, None
             )
             target_total_q_values.append(target_q_values)
+        # avail_actionsを考慮して，選択できない行動のQ値を大きな負の値にする
+        for t in range(self.args.episode_length):
+            unavailable_actions = (
+                avail_actions[:, t + 1] == 0
+            )  # (batch, n_agents, action_dim)
+            target_total_q_values[t][unavailable_actions] = -1e10
+        print(
+            "target_total_q_values before stack:", target_total_q_values[0][0]
+        )
         target_total_q_values = torch.stack(
             target_total_q_values, dim=1
         )  # (batch_size, episode_length, n_agents, action_space)

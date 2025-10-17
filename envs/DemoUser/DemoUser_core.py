@@ -46,7 +46,6 @@ class World:
             [3, 5],
             [4, 5],
         ]
-        self.forbiddens = []  # Debug用に禁止エリアをなくす
         self.world_step = 0
 
     def step(
@@ -80,4 +79,6 @@ class World:
                         agent.state.coor = assumed_coor  # 動けるので座標を更新
                         occupied.append(assumed_coor)
             else:
-                occupied.append(agent.state.coor)  # 枠からはみ出た場合はそのまま
+                occupied.append(
+                    agent.state.coor
+                )  # 枠からはみ出た場合はそのまま

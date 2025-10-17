@@ -54,6 +54,13 @@ class ValueMainRunner(ValueBaseRunner):
                     self.episode_length,
                     dtype=torch.bool,
                 ),  # (num_rollout_threads, episode_length) (bool)
+                "avail_actions": torch.ones(
+                    self.num_rollout_threads,
+                    self.episode_length + 1,
+                    self.num_agents,
+                    self.action_dim,
+                    dtype=torch.bool,
+                ),
             }
             # 環境をリセットして初期観測を取得 && hidden stateの初期化
             obs = (
@@ -74,6 +81,12 @@ class ValueMainRunner(ValueBaseRunner):
                 self.all_args.device
             )  # エピソード開始直後はすべての環境が未終了なのでmaskはFalse
             episode_data["obs"][:, 0] = obs
+            avail_actions = self.envs.get_avail_actions()
+            avail_actions = (
+                torch.from_numpy(avail_actions).bool().to(self.all_args.device)
+            )
+            episode_data["avail_actions"][:, 0] = avail_actions
+            print(episode_data["avail_actions"][:, 0])
             for step in range(self.episode_length):
                 # obsをTensorに変換
                 actions, next_hidden_states = self.collect(
@@ -109,6 +122,12 @@ class ValueMainRunner(ValueBaseRunner):
                 )
                 dones = torch.from_numpy(dones).bool().to(self.all_args.device)
                 episode_data["obs"][:, step + 1] = next_obs
+                episode_data["avail_actions"][:, step + 1] = (
+                    torch.from_numpy(self.envs.get_avail_actions())
+                    .bool()
+                    .to(self.all_args.device)
+                )
+                print(episode_data["avail_actions"][:, step + 1])
                 episode_data["rewards"][:, step] = rewards
                 episode_data["dones"][:, step] = dones
                 if step + 1 < self.episode_length:
@@ -119,11 +138,8 @@ class ValueMainRunner(ValueBaseRunner):
                     self.num_rollout_threads
                     - episode_data["mask"][:, step].sum().item()
                 )
-
                 obs = next_obs
                 hidden_states = next_hidden_states
-                print(f"Episode {episode} Step {step} finished.")
-                print(f"observations: {obs}")
 
             self.insert(episode_data)
             # バッチ数分のデータが溜まったら学習を行う
@@ -147,6 +163,8 @@ class ValueMainRunner(ValueBaseRunner):
                     reward_list=reward_list,
                     action_list=action_list,
                 )
+
+            exit()
 
     def insert(self, episode_data):
         # obsからshare_obsを取得してepisode_dataに追加

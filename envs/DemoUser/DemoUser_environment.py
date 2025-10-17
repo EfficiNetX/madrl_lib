@@ -36,12 +36,15 @@ class DemoUserMultiAgentEnv:
             for _ in range(self.num_agents)
         ]
         self.share_observation_space = [
-            ([-1 for x in range(self.num_agents)] + [-1, -1, -1, -1]) * self.num_agents
+            ([-1 for x in range(self.num_agents)] + [-1, -1, -1, -1])
+            * self.num_agents
             for _ in range(self.num_agents)
         ]
         self.action_space = [
             [-1 for _ in range(5)] for _ in range(self.num_agents)
         ]  # 縦・横・とどまる
+
+        self._precompute_avail_actions()
 
     def seed(self, seed=None):
         if seed is None:
@@ -87,7 +90,12 @@ class DemoUserMultiAgentEnv:
             obs_n.append(
                 np.concatenate(
                     [
-                        np.array([1 if j == i else 0 for j in range(self.num_agents)]),
+                        np.array(
+                            [
+                                1 if j == i else 0
+                                for j in range(self.num_agents)
+                            ]
+                        ),
                         self._get_obs(agent),
                     ]
                 )
@@ -100,6 +108,14 @@ class DemoUserMultiAgentEnv:
         else:
             reward_n = [[r] for r in reward_n]
         return obs_n, reward_n, done_n
+
+    def get_avail_actions(self):
+        avail_actions_n = []
+        for i, agent in enumerate(self.agents):
+            x, y = agent.state.coor
+            avail_actions = self.avail_actions_dict[(x, y)]
+            avail_actions_n.append(avail_actions)
+        return avail_actions_n
 
     # set env action for a particular agent
     def _set_action(self, action, agent, action_space):
@@ -127,3 +143,20 @@ class DemoUserMultiAgentEnv:
 
     def _get_reward(self, agent):
         return self.reward_callback(agent, self.world)
+
+    def _precompute_avail_actions(self):
+        self.avail_actions_dict = {}
+        grid_size = 6
+        for x in range(grid_size):
+            for y in range(grid_size):
+                # 0が左，1が右，2が下，3が上，4がとどまるとする
+                avail_actions = [True] * 5  # up, down, left, right, stay
+                if [x - 1, y] in self.world.forbiddens or x - 1 < 0:
+                    avail_actions[0] = False  # 左
+                if [x + 1, y] in self.world.forbiddens or x + 1 >= grid_size:
+                    avail_actions[1] = False  # 右
+                if [x, y - 1] in self.world.forbiddens or y - 1 < 0:
+                    avail_actions[2] = False  # 下
+                if [x, y + 1] in self.world.forbiddens or y + 1 >= grid_size:
+                    avail_actions[3] = False  # 上
+                self.avail_actions_dict[(x, y)] = avail_actions

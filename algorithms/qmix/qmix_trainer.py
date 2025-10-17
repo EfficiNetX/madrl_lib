@@ -94,15 +94,11 @@ class QMIXTrainer:
                 obs[:, t + 1], hidden_state, None
             )
             target_total_q_values.append(target_q_values)
-        # avail_actionsを考慮して，選択できない行動のQ値を大きな負の値にする
-        for t in range(self.args.episode_length):
             unavailable_actions = (
                 avail_actions[:, t + 1] == 0
             )  # (batch, n_agents, action_dim)
             target_total_q_values[t][unavailable_actions] = -1e10
-        print(
-            "target_total_q_values before stack:", target_total_q_values[0][0]
-        )
+        # avail_actionsを考慮して，選択できない行動のQ値を大きな負の値にする
         target_total_q_values = torch.stack(
             target_total_q_values, dim=1
         )  # (batch_size, episode_length, n_agents, action_space)
@@ -110,22 +106,21 @@ class QMIXTrainer:
             0
         ]  # (batch_size, episode_length, n_agents)
 
-        """
         # ③ ミキサーを用いて全体のQ値を計算
         if self.mixer is not None:
-            mixed_chosen_action_qvals = self.mixer(chosen_action_qvals, share_obs[:, :-1])
+            mixed_chosen_action_qvals = self.mixer(
+                chosen_action_qvals, share_obs[:, :-1]
+            )
             mixed_target_max_qvals = self.target_mixer(
                 target_max_qvals, share_obs[:, 1:]
             )  # (batch_size, episode_length, 1)
         else:  # VDNの場合
-        """
-
-        mixed_chosen_action_qvals = chosen_action_qvals.sum(
-            dim=2, keepdim=True
-        )  # (batch_size, episode_length, 1)
-        mixed_target_max_qvals = target_max_qvals.sum(
-            dim=2, keepdim=True
-        )  # (batch_size, episode_length, 1S)
+            mixed_chosen_action_qvals = chosen_action_qvals.sum(
+                dim=2, keepdim=True
+            )  # (batch_size, episode_length, 1)
+            mixed_target_max_qvals = target_max_qvals.sum(
+                dim=2, keepdim=True
+            )  # (batch_size, episode_length, 1)
 
         # rewards (batch, episode_length, num_agents,1)を、(batch,episode_length,1)にする
         rewards = rewards.sum(dim=2)  # (batch_size, episode_length, 1)

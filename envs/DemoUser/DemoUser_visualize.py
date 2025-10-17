@@ -75,24 +75,21 @@ def visualizer(
             ax.plot(x, y, "o", color=agent_colors[i], markersize=20)
             # 報酬の値を表示（t>0のときのみ）
             # 矢印・バツの描画
-            if t < len(action_list):
-                print(f"Step {t}, Agent {i}, Action {action_list[t][i][0]}")
-                visualize_action(ax, x, y, action_list[t][i][0])
-                visualize_reward(
-                    ax,
-                    x,
-                    y,
-                    reward_list[t][i][0],
-                    color="blue" if reward_list[t][i][0] >= 0 else "red",
-                )
+
+            visualize_action(ax, x, y, action_list[t][i][0])
+            visualize_reward(
+                ax,
+                x,
+                y,
+                reward_list[t][i][0],
+                color="blue" if reward_list[t][i][0] >= 0 else "red",
+            )
 
         # フレーム保存
         plt.savefig(dir_name + f"/{t}.png")
         plt.close()
     # GIF作成
-    with imageio.get_writer(
-        dir_name + f"/DemoUser.gif", duration=5.0
-    ) as writer:
+    with imageio.get_writer(dir_name + f"/DemoUser.gif", duration=5.0) as writer:
         for t in range(len(obs_list) + 1):
             image = imageio.imread(dir_name + f"/{t}.png")
             writer.append_data(image)

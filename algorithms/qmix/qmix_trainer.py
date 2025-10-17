@@ -71,32 +71,24 @@ class QMIXTrainer:
             self.args.qmix_batch_size
         )  # バッチ数でRNNの隠れ状態を初期化
         for t in range(self.args.episode_length):  # episode_length回ループ
-            q_values, hidden_state = self.policy.forward(
-                obs[:, t], hidden_state, None
-            )
+            q_values, hidden_state = self.policy.forward(obs[:, t], hidden_state, None)
             total_q_values.append(q_values)
         total_q_values = torch.stack(
             total_q_values, dim=1
         )  # (batch_size, episode_length, n_agents, action_space)
-        chosen_action_qvals = torch.gather(
-            total_q_values, dim=3, index=actions
-        ).squeeze(
+        chosen_action_qvals = torch.gather(total_q_values, dim=3, index=actions).squeeze(
             3
         )  # (batch_size, episode_length, n_agents)
 
         # ② ターゲットネットワークを用いて次の状態での最大Q値を計算
         target_total_q_values = []
-        hidden_state = self.target_policy.init_hidden(
-            self.args.qmix_batch_size
-        )
+        hidden_state = self.target_policy.init_hidden(self.args.qmix_batch_size)
         for t in range(self.args.episode_length):
             target_q_values, hidden_state = self.target_policy.forward(
                 obs[:, t + 1], hidden_state, None
             )
             target_total_q_values.append(target_q_values)
-            unavailable_actions = (
-                avail_actions[:, t + 1] == 0
-            )  # (batch, n_agents, action_dim)
+            unavailable_actions = avail_actions[:, t + 1] == 0  # (batch, n_agents, action_dim)
             target_total_q_values[t][unavailable_actions] = -1e10
         # avail_actionsを考慮して，選択できない行動のQ値を大きな負の値にする
         target_total_q_values = torch.stack(
@@ -108,9 +100,7 @@ class QMIXTrainer:
 
         # ③ ミキサーを用いて全体のQ値を計算
         if self.mixer is not None:
-            mixed_chosen_action_qvals = self.mixer(
-                chosen_action_qvals, share_obs[:, :-1]
-            )
+            mixed_chosen_action_qvals = self.mixer(chosen_action_qvals, share_obs[:, :-1])
             mixed_target_max_qvals = self.target_mixer(
                 target_max_qvals, share_obs[:, 1:]
             )  # (batch_size, episode_length, 1)
@@ -126,13 +116,8 @@ class QMIXTrainer:
         rewards = rewards.sum(dim=2)  # (batch_size, episode_length, 1)
         # 各バッチごとのTD誤差を計算
         # If any agent is not done, mask should be 1 (i.e., not all done)
-        not_all_done = (
-            (~dones).any(dim=2, keepdim=True).float()
-        )  # (batch, episode_length, 1)
-        target = (
-            rewards
-            + self.args.qmix_gamma * mixed_target_max_qvals * not_all_done
-        )
+        not_all_done = (~dones).any(dim=2, keepdim=True).float()  # (batch, episode_length, 1)
+        target = rewards + self.args.qmix_gamma * mixed_target_max_qvals * not_all_done
         td_errors = mixed_chosen_action_qvals - target.detach()
         # 1ステップのTD誤差の２乗の平均値を取得する
         loss = (td_errors**2 * (~mask).unsqueeze(-1)).sum() / (~mask).sum()
@@ -143,7 +128,7 @@ class QMIXTrainer:
         self.loss_list.append(loss.item())
         self.reward_list.append(rewards.sum().item() / rewards.shape[0])
 
-        if self.learned_steps % 200 == 0:
+        if self.learned_steps % 50 == 0:
             avg_loss = sum(self.loss_list) / len(self.loss_list)
             avg_reward = sum(self.reward_list) / len(self.reward_list)
             with open("loss_log.txt", "a") as f:
@@ -167,9 +152,7 @@ class QMIXTrainer:
             self._update_targets()
 
     def _update_targets(self):
-        self.target_policy.agent_q_network.load_state_dict(
-            self.policy.agent_q_network.state_dict()
-        )
+        self.target_policy.agent_q_network.load_state_dict(self.policy.agent_q_network.state_dict())
         if self.mixer is not None:
             self.target_mixer.load_state_dict(self.mixer.state_dict())
         if self.logger is not None:

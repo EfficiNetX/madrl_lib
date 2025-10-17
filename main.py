@@ -41,7 +41,7 @@ def main(args):
         from runner.separated.main_runner import UserEnvRunner as Runner
 
     # QMIXを動かすためのdemoコード
-    if args.algorithm_name == "QMIX":
+    if args.algorithm_name == "QMIX" or args.algorithm_name == "VDN":
         from runner.shared.value_main_runner import ValueMainRunner as Runner
 
     runner = Runner(config)

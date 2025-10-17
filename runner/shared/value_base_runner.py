@@ -25,11 +25,25 @@ class ValueBaseRunner(BaseRunner):
             from utils.shared_episode_buffer import (
                 EpisodeReplayBuffer as ReplayBuffer,
             )
+
+            self.mixer = Mixer(
+                self.all_args, self.obs_space, self.share_obs_space, self.action_space
+            )
+        elif self.algorithm_name == "VDN":
+            from algorithms.qmix.algorithm.qmix_policy import (
+                QMIXPolicy as Policy,
+            )
+            from algorithms.qmix.algorithm.mixing_nn import QMixer as Mixer
+            from algorithms.qmix.qmix_trainer import QMIXTrainer as Trainer
+            from utils.shared_episode_buffer import (
+                EpisodeReplayBuffer as ReplayBuffer,
+            )
+
+            self.mixer = None  # VDNではミキサーは使用しない
         else:
             raise NotImplementedError("Unknown value-based algorithm.")
         # TODO: 中央集権型価値関数を使わない場合の処理．self.mixer = Noneの時のtrainerの挙動を実装すれば良い
         self.policy = Policy(self.all_args, self.obs_space, self.share_obs_space, self.action_space)
-        self.mixer = Mixer(self.all_args, self.obs_space, self.share_obs_space, self.action_space)
         self.trainer = Trainer(self.policy, self.mixer, self.all_args)
         self.buffer = ReplayBuffer(
             args=self.all_args,

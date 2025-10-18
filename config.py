@@ -367,6 +367,12 @@ def get_config():
         default=0.99,
         help="QMIX用: 割引率",
     )
+    parser.add_argument(
+        "--grad_norm_clip",
+        type=float,
+        default=10.0,
+        help="QMIX用: 勾配クリッピングの閾値",
+    )
     return parser
 
 

@@ -1,10 +1,11 @@
 import time
-from runner.shared.value_base_runner import ValueBaseRunner
+from runner.shared.base_runner import BaseRunner
 import numpy as np
 import torch
+from typing import Tuple
 
 
-class ValueMainRunner(ValueBaseRunner):
+class ValueMainRunner(BaseRunner):
     """
     Value-basedアルゴリズム（QMIX/VDN等）用のメインRunnerクラス
     """
@@ -63,7 +64,9 @@ class ValueMainRunner(ValueBaseRunner):
                 ),
             }
             # 環境をリセットして初期観測を取得 && hidden stateの初期化
-            obs = self.envs.reset()  # Numpy配列 (num_rollout_threads, num_agents, obs_dim)
+            obs = (
+                self.envs.reset()
+            )  # Numpy配列 (num_rollout_threads, num_agents, obs_dim)
             obs = torch.from_numpy(obs).float().to(self.all_args.device)
             hidden_states = self.policy.init_hidden(
                 self.num_rollout_threads
@@ -80,13 +83,19 @@ class ValueMainRunner(ValueBaseRunner):
             )  # エピソード開始直後はすべての環境が未終了なのでmaskはFalse
             episode_data["obs"][:, 0] = obs
             avail_actions = self.envs.get_avail_actions()
-            avail_actions = torch.from_numpy(avail_actions).bool().to(self.all_args.device)
+            avail_actions = (
+                torch.from_numpy(avail_actions).bool().to(self.all_args.device)
+            )
             episode_data["avail_actions"][:, 0] = avail_actions
             for step in range(self.episode_length):
                 # obsをTensorに変換
-                actions, next_hidden_states = self.collect(obs, hidden_states, dones)
+                actions, next_hidden_states = self.collect(
+                    obs, hidden_states, dones
+                )
                 episode_data["actions"][:, step] = actions
-                actions = actions.cpu().numpy()  # (num_rollout_threads, num_agents, 1)
+                actions = (
+                    actions.cpu().numpy()
+                )  # (num_rollout_threads, num_agents, 1)
                 action_list.append(actions[0])  # visualize用に保存
                 # one-hot化
                 num_actions = (
@@ -100,21 +109,34 @@ class ValueMainRunner(ValueBaseRunner):
                 next_obs, rewards, dones = self.envs.step(
                     actions_onehot
                 )  # 入力値、返り値はNumpy配列
-                if not step == self.episode_length - 1:  # 最終ステップではない場合
+                if (
+                    not step == self.episode_length - 1
+                ):  # 最終ステップではない場合
                     obs_list.append(next_obs[0])  # visualize用に保存
                 reward_list.append(rewards[0])  # visualize用に保存
-                next_obs = torch.from_numpy(next_obs).float().to(self.all_args.device)
-                rewards = torch.from_numpy(rewards).float().to(self.all_args.device)
+                next_obs = (
+                    torch.from_numpy(next_obs).float().to(self.all_args.device)
+                )
+                rewards = (
+                    torch.from_numpy(rewards).float().to(self.all_args.device)
+                )
                 dones = torch.from_numpy(dones).bool().to(self.all_args.device)
                 episode_data["obs"][:, step + 1] = next_obs
                 episode_data["avail_actions"][:, step + 1] = (
-                    torch.from_numpy(self.envs.get_avail_actions()).bool().to(self.all_args.device)
+                    torch.from_numpy(self.envs.get_avail_actions())
+                    .bool()
+                    .to(self.all_args.device)
                 )
                 episode_data["rewards"][:, step] = rewards
                 episode_data["dones"][:, step] = dones
                 if step + 1 < self.episode_length:
-                    episode_data["mask"][:, step + 1] = dones.all(dim=1)  # (num_rollout_threads,)
-                t_env += self.num_rollout_threads - episode_data["mask"][:, step].sum().item()
+                    episode_data["mask"][:, step + 1] = dones.all(
+                        dim=1
+                    )  # (num_rollout_threads,)
+                t_env += (
+                    self.num_rollout_threads
+                    - episode_data["mask"][:, step].sum().item()
+                )
                 obs = next_obs
                 hidden_states = next_hidden_states
 
@@ -139,6 +161,38 @@ class ValueMainRunner(ValueBaseRunner):
         # obsからshare_obsを取得してepisode_dataに追加
         # TODO: 必要ならば，obsを共有しない場合の分岐を実装する
         share_obs = episode_data["obs"]
-        share_obs = share_obs.reshape(self.num_rollout_threads, self.episode_length + 1, -1)
+        share_obs = share_obs.reshape(
+            self.num_rollout_threads, self.episode_length + 1, -1
+        )
         episode_data["share_obs"] = share_obs
         self.buffer.insert(episode_data)
+
+    def collect(
+        self, obs, hidden_states, dones
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        # 1ステップ分のデータ収集
+        actions, next_hidden_states = self.policy.get_actions(
+            obs, hidden_states, dones
+        )
+        return actions, next_hidden_states
+
+    def warmup(self):
+        # 環境をリセットして初期観測を取得
+        obs = self.envs.reset()
+        # 必要なら初期観測をバッファや変数に保存
+        self.initial_obs = obs.copy()
+        self.initial_hidden_states = self.policy.init_hidden(
+            self.num_rollout_threads
+        )
+
+    def train(self, episode_samples):
+        self.trainer.train(episode_samples)
+
+    def update_epsilon(self, t_env):
+        self.policy.update_epsilon(t_env)
+
+    def can_sample(self):
+        return self.buffer.can_sample(self.all_args.qmix_batch_size)
+
+    def sample(self):
+        return self.buffer.sample(self.all_args.qmix_batch_size)

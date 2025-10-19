@@ -33,7 +33,7 @@ def get_config():
             "MAT",
             "MAT_DEC",
         ],
-        default="VDN",  # VDNを動かすために変更
+        default="QMIX",  # QMIXを動かすために変更
         help="アルゴリズム名の指定",
     )
     parser.add_argument(
@@ -310,7 +310,7 @@ def get_config():
     parser.add_argument(
         "--qmix_target_update_interval",
         type=int,
-        default=1000,
+        default=2000,
         help="QMIX用: ターゲットネットワークの更新間隔（学習回数）",
     )
     parser.add_argument(
@@ -346,7 +346,7 @@ def get_config():
     parser.add_argument(
         "--qmix_rnn_hidden_dim",
         type=int,
-        default=256,
+        default=32,
         help="RNNの隠れ状態の次元",
     )
     parser.add_argument(
@@ -358,7 +358,7 @@ def get_config():
     parser.add_argument(
         "--qmix_hypernet_embed_dim",
         type=int,
-        default=64,
+        default=32,
         help="QMIX用: ハイパーネットワークの埋め込み次元（層数が2の場合に使用）",
     )
     parser.add_argument(

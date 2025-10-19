@@ -74,7 +74,7 @@ class QMIXTrainer:
         td_errors = mixed_chosen_action_qvals - target.detach()
         # 1ステップのTD誤差の２乗の平均値を取得する
         loss = (td_errors**2 * (~batch["mask"]).unsqueeze(-1)).sum() / (~batch["mask"]).sum()
-        self._log_training_progress(loss.item(), rewards.sum().item() / rewards.shape[0])
+        # self._log_training_progress(loss.item(), rewards.sum().item() / rewards.shape[0])
 
         # 勾配を計算
         self.policy.optimizer.zero_grad()

@@ -74,7 +74,7 @@ class QTrainer:
         td_errors = mixed_chosen_action_qvals - target.detach()
         # 1ステップのTD誤差の２乗の平均値を取得する
         loss = (td_errors**2 * (~batch["mask"]).unsqueeze(-1)).sum() / (~batch["mask"]).sum()
-        # self._log_training_progress(loss.item(), rewards.sum().item() / rewards.shape[0])
+        self._log_training_progress(loss.item(), rewards.sum().item() / rewards.shape[0])
 
         # 勾配を計算
         self.policy.optimizer.zero_grad()
@@ -92,9 +92,9 @@ class QTrainer:
         Returns: (batch_size, episode_length, n_agents, action_space)
         """
         total_q_values = []
-        hidden_state = network.init_hidden(obs.shape[0])
+        network.init_hidden(obs.shape[0])
         for t in range(obs.shape[1]):
-            q_values, hidden_state = network.forward(obs[:, t], hidden_state, None)
+            q_values = network.forward(obs[:, t], None)
             total_q_values.append(q_values)
         total_q_values = torch.stack(total_q_values, dim=1)
         return total_q_values

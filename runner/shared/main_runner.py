@@ -92,6 +92,12 @@ class UserEnvRunner(BaseRunner):
                             np.mean(self.buffer.rewards[:, :, agent_id, :]) * self.episode_length,
                         )
                     )
+                self.visualizer(
+                    episode=episode,
+                    obs_list=obs_list,
+                    reward_list=reward_list,
+                    action_list=action_list,
+                )
 
     def warmup(self):
         # envをresetする

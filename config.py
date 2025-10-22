@@ -33,7 +33,7 @@ def get_config():
             "MAT",
             "MAT_DEC",
         ],
-        default="QMIX",  # QMIXを動かすために変更
+        default="MAT",
         help="アルゴリズム名の指定",
     )
     parser.add_argument(
@@ -57,10 +57,9 @@ def get_config():
     parser.add_argument(
         "--num_env_steps",
         type=int,
-        default=160e6,  # QMIXを動かすために10e6から160e6に変更
+        default=10e6,
         help="訓練するステップ数",
     )
-
     # env parameters
     parser.add_argument(
         "--user_name",
@@ -69,12 +68,11 @@ def get_config():
         choices=["DemoUser", "LogisticsUser"],
         help="環境名の指定",
     )
-
     # network parameters
     parser.add_argument(
         "--share_policy",
         action="store_true",
-        default=True,  # QMIXを動かすためにTrueに変更
+        default=False,
         help="Whether to use the same policy for all agents",
     )
     parser.add_argument(
@@ -87,7 +85,7 @@ def get_config():
         "--hidden_size",
         type=int,
         default=64,
-        help="Dimension of hidden layers for actor/critic networks",
+        help="Dimension of hidden layers for actor/critic networks or for QMixer networks",
     )
     parser.add_argument(
         "--use_popart",
@@ -131,7 +129,6 @@ def get_config():
         default=0.01,
         help="The gain # of last action layer",
     )
-
     # recurrent parameters
     parser.add_argument(
         "--recurrent_N",
@@ -157,7 +154,6 @@ def get_config():
         default=10,
         help="Time length of chunks used to train a recurrent_policy",
     )
-
     # optimizer parameters
     parser.add_argument(
         "--lr",
@@ -182,7 +178,6 @@ def get_config():
         type=float,
         default=0,
     )
-
     # ppo parameters
     parser.add_argument(
         "--ppo_epoch",
@@ -285,10 +280,9 @@ def get_config():
     parser.add_argument(
         "--log_interval",
         type=int,
-        default=16000,  # 50から16000に変更
+        default=50,
         help="time duration between contiunous twice log printing.",
     )
-
     # add for transformer
     parser.add_argument("--num_block", type=int, default=1)
     parser.add_argument("--num_embd", type=int, default=64)
@@ -296,89 +290,57 @@ def get_config():
 
     # add for QMIX
     parser.add_argument(
-        "--qmix_buffer_size",
+        "--buffer_size",
         type=int,
         default=10000,
-        help="QMIX用: リプレイバッファの最大エピソード数",
+        help="QMIX、VDN用: リプレイバッファの最大エピソード数",
     )
     parser.add_argument(
-        "--qmix_batch_size",
+        "--batch_size",
         type=int,
         default=512,
         help="QMIX用: 学習時にサンプリングするエピソード数",
     )
     parser.add_argument(
-        "--qmix_target_update_interval",
+        "--target_network_update_interval",
         type=int,
         default=2000,
         help="QMIX用: ターゲットネットワークの更新間隔（学習回数）",
     )
     parser.add_argument(
-        "--qmix_epsilon_start",
+        "--epsilon_start",
         type=float,
         default=1.0,
         help="QMIX用: ε-greedy探索の初期値",
     )
     parser.add_argument(
-        "--qmix_epsilon_final",
+        "--epsilon_final",
         type=float,
         default=0.05,
         help="QMIX用: ε-greedy探索の最終値",
     )
     parser.add_argument(
-        "--qmix_epsilon_anneal_time",
+        "--epsilon_anneal_time",
         type=int,
-        default=130e6,
+        default=8e5,
         help="QMIX用: εを減衰させるステップ数",
     )
     parser.add_argument(
-        "--qmix_mixer_embed_dim",
+        "--mixer_embed_dim",
         type=int,
         default=32,
         help="QMIX用: Mixerネットワークの埋め込み次元",
     )
     parser.add_argument(
-        "--qmix_mixer_hidden_size",
-        type=int,
-        default=32,
-        help="QMIX用: Mixerネットワークの隠れ層サイズ",
-    )
-    parser.add_argument(
-        "--qmix_rnn_hidden_dim",
-        type=int,
-        default=32,
-        help="RNNの隠れ状態の次元",
-    )
-    parser.add_argument(
-        "--qmix_hypernet_layers",
+        "--hypernet_layers",
         type=int,
         default=2,
-        help="QMIX用: ハイパーネットワークの層数",
+        help="QMIX用: ハイパーネットワークの層数.1か2を指定してください",
     )
     parser.add_argument(
-        "--qmix_hypernet_embed_dim",
+        "--hypernet_embed_dim",
         type=int,
         default=32,
         help="QMIX用: ハイパーネットワークの埋め込み次元（層数が2の場合に使用）",
     )
-    parser.add_argument(
-        "--qmix_gamma",
-        type=float,
-        default=0.99,
-        help="QMIX用: 割引率",
-    )
-    parser.add_argument(
-        "--grad_norm_clip",
-        type=float,
-        default=10.0,
-        help="QMIX用: 勾配クリッピングの閾値",
-    )
     return parser
-
-
-# 試行１: uv run python main.py --log_interval=1000 --lr=5e-8 --num_env_steps=20000000 --num_rollout_threads=48
-# 結果: うまくいかず　イプシロンが減衰しきった後の学習が進まない　おそらくepisode_lengthが短すぎてゴールまでたどり着けていない
-# uv run python main.py --log_interval=100 --num_env_steps=100000000 --num_rollout_threads=32 --qmix_epsilon_anneal_time=75000000 --episode_length=100
-# 結果: うまくいかず　急にLossが２０から４００に増大した。おそらく、target networkの更新が早すぎるのでは？
-# target networkの更新間隔を100から2000に変更
-# uv run python main.py --log_interval=1000 --num_env_steps=100000000 --num_rollout_threads=32 --qmix_epsilon_anneal_time=75000000 --episode_length=100 --lr=5e-8

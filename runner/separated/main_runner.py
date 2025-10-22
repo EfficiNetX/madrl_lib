@@ -17,18 +17,14 @@ class UserEnvRunner(BaseRunner):
         super().__init__(config)
         # visualizerのimport
         user_name = config["args"].user_name
-        visualizeClass = importlib.import_module(
-            f"envs.{user_name}.{user_name}_visualize"
-        )
+        visualizeClass = importlib.import_module(f"envs.{user_name}.{user_name}_visualize")
         self.visualizer = getattr(visualizeClass, "visualizer")
 
     def run(self):
         self.warmup()
         start = time.time()
 
-        episodes = (
-            int(self.num_env_steps) // self.episode_length // self.num_rollout_threads
-        )
+        episodes = int(self.num_env_steps) // self.episode_length // self.num_rollout_threads
         for episode in range(episodes):
             print("episode ={}".format(episode))
             if self.use_linear_lr_decay:
@@ -60,7 +56,10 @@ class UserEnvRunner(BaseRunner):
                 self.insert(data)
 
                 # visualizeのためにデータを保存
-                obs_list.append(obs[0])
+                if (
+                    step != self.episode_length - 1
+                ):  # 最終ステップの次状態は可視化フレーム外に出るため保存しない
+                    obs_list.append(obs[0])
                 reward_list.append(rewards[0])
                 action_list.append(actions[0])
 
@@ -68,9 +67,7 @@ class UserEnvRunner(BaseRunner):
             self.compute()
             train_infos = self.train()
             # post process
-            total_num_steps = (
-                (episode + 1) * self.episode_length * self.num_rollout_threads
-            )
+            total_num_steps = (episode + 1) * self.episode_length * self.num_rollout_threads
             if episode % self.log_interval == 0:
                 print(
                     "Scenario {} Algo {} updates {}/{} episodes,"
@@ -88,8 +85,7 @@ class UserEnvRunner(BaseRunner):
                     print(
                         "agent {}: average episode rewards is {}".format(
                             agent_id,
-                            np.mean(self.buffer[agent_id].rewards)
-                            * self.episode_length,
+                            np.mean(self.buffer[agent_id].rewards) * self.episode_length,
                         )
                     )
 
@@ -189,12 +185,8 @@ class UserEnvRunner(BaseRunner):
             (dones.sum(), self.recurrent_N, self.hidden_size),
             dtype=np.float32,
         )
-        rnn_states_critic[dones] = np.zeros(
-            (dones.sum(), self.recurrent_N, self.hidden_size)
-        )
-        masks = np.ones(
-            (self.num_rollout_threads, self.num_agents, 1), dtype=np.float32
-        )
+        rnn_states_critic[dones] = np.zeros((dones.sum(), self.recurrent_N, self.hidden_size))
+        masks = np.ones((self.num_rollout_threads, self.num_agents, 1), dtype=np.float32)
         masks[dones] = np.zeros((dones.sum(), 1), dtype=np.float32)
 
         share_obs = []

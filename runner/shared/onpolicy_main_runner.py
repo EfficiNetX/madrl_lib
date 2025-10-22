@@ -11,6 +11,14 @@ class ValueMainRunner(BaseRunner):
 
     def __init__(self, config):
         super().__init__(config)
+        self.obs_buf = np.zeros(
+            (
+                self.num_rollout_threads,
+                self.episode_length + 1,
+                self.num_agents,
+                self.obs_dim,
+            )
+        )
 
     def run(self):
         t_env = 0  # 環境ステップ数のカウンタ
@@ -78,9 +86,7 @@ class ValueMainRunner(BaseRunner):
                 (self.num_rollout_threads, self.num_agents, 1),
                 dtype=torch.bool,
             ).to(self.all_args.device)
-            mask_buf[:, 0] = torch.zeros(
-                (self.num_rollout_threads,), dtype=torch.bool
-            ).to(
+            mask_buf[:, 0] = torch.zeros((self.num_rollout_threads,), dtype=torch.bool).to(
                 self.all_args.device
             )  # エピソード開始直後はすべての環境が未終了なのでmaskはFalse
             obs_buf[:, 0] = obs
@@ -89,7 +95,7 @@ class ValueMainRunner(BaseRunner):
             avail_actions_buf[:, 0] = avail_actions
             for step in range(self.episode_length):
                 # obsをTensorに変換
-                actions, next_hidden_states = self.collect(obs, hidden_states, dones)
+                actions, hidden_states = self.collect(obs, hidden_states, dones)
                 actions_buf[:, step] = actions
                 actions = actions.cpu().numpy()  # (num_rollout_threads, num_agents, 1)
                 action_list.append(actions[0])  # visualize用に保存
@@ -102,16 +108,14 @@ class ValueMainRunner(BaseRunner):
                 actions_onehot = np.eye(num_actions)[
                     actions.squeeze(-1)
                 ]  # (num_rollout_threads, num_agents, num_actions)
-                next_obs, rewards, dones = self.envs.step(
-                    actions_onehot
-                )  # 入力値、返り値はNumpy配列
+                obs, rewards, dones = self.envs.step(actions_onehot)  # 入力値、返り値はNumpy配列
                 if not step == self.episode_length - 1:  # 最終ステップではない場合
-                    obs_list.append(next_obs[0])  # visualize用に保存
+                    obs_list.append(obs[0])  # visualize用に保存
                 reward_list.append(rewards[0])  # visualize用に保存
-                next_obs = torch.from_numpy(next_obs).float().to(self.all_args.device)
+                obs = torch.from_numpy(obs).float().to(self.all_args.device)
                 rewards = torch.from_numpy(rewards).float().to(self.all_args.device)
                 dones = torch.from_numpy(dones).bool().to(self.all_args.device)
-                obs_buf[:, step + 1] = next_obs
+                obs_buf[:, step + 1] = obs
                 avail_actions_buf[:, step + 1] = (
                     torch.from_numpy(self.envs.get_avail_actions()).bool().to(self.all_args.device)
                 )
@@ -120,14 +124,10 @@ class ValueMainRunner(BaseRunner):
                 if step + 1 < self.episode_length:
                     mask_buf[:, step + 1] = dones.all(dim=1)  # (num_rollout_threads,)
                 t_env += self.num_rollout_threads - mask_buf[:, step].sum().item()
-                obs = next_obs
-                hidden_states = next_hidden_states
 
             # 各テンソルをnumpy配列に変換してselfに保持
             # share_obsは(obsのエージェント次元をフラット化)
-            share_obs = obs_buf.reshape(
-                self.num_rollout_threads, self.episode_length + 1, -1
-            )
+            share_obs = obs_buf.reshape(self.num_rollout_threads, self.episode_length + 1, -1)
             self.share_obs = share_obs.detach().cpu().numpy().astype(np.float32)
             self.obs = obs_buf.detach().cpu().numpy().astype(np.float32)
             self.actions = actions_buf.detach().cpu().numpy().astype(np.int64)
@@ -139,9 +139,9 @@ class ValueMainRunner(BaseRunner):
             # バッファへ挿入（位置引数で渡す）
             self.insert()
             # バッチ数分のデータが溜まったら学習を行う
-            if self.can_sample():
-                episode_samples = self.sample()
-                self.train(episode_samples)
+            if self.buffer.can_sample(self.all_args.batch_size):
+                episode_samples = self.buffer.sample(self.all_args.batch_size)
+                self.trainer.train(episode_samples)
 
             if episode % self.log_interval == 0:
                 print(f"Episode {episode} finished.")
@@ -177,15 +177,3 @@ class ValueMainRunner(BaseRunner):
         # 必要なら初期観測をバッファや変数に保存
         self.initial_obs = obs.copy()
         self.initial_hidden_states = self.policy.init_hidden(self.num_rollout_threads)
-
-    def train(self, episode_samples):
-        self.trainer.train(episode_samples)
-
-    def update_epsilon(self, t_env):
-        self.policy.update_epsilon(t_env)
-
-    def can_sample(self):
-        return self.buffer.can_sample(self.all_args.qmix_batch_size)
-
-    def sample(self):
-        return self.buffer.sample(self.all_args.qmix_batch_size)

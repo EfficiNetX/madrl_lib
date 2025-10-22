@@ -85,16 +85,16 @@ class BaseRunner(object):
             share_obs_space = self.envs.share_observation_space[
                 0
             ]  # QMIX/VDNではshared_obs_spaceを必ず使う
-            from algorithms.qmix.algorithm.qmix_policy import (
-                QMIXPolicy as Policy,
+            from algorithms.valuedecomposition.algorithm.QPolicy import (
+                QPolicy as Policy,
             )
-            from algorithms.qmix.qmix_trainer import QMIXTrainer as Trainer
+            from algorithms.valuedecomposition.QTrainer import QTrainer as Trainer
             from utils.shared_episode_buffer import (
                 EpisodeReplayBuffer as ReplayBuffer,
             )
 
             if self.algorithm_name == "QMIX":
-                from algorithms.qmix.algorithm.mixing_nn import QMixer as Mixer
+                from algorithms.valuedecomposition.algorithm.mixing_nn import QMixer as Mixer
 
                 self.mixer = Mixer(
                     self.all_args,
@@ -132,9 +132,7 @@ class BaseRunner(object):
         print("share_obs_space", share_obs_space)
         print("action_space", action_space)
         user_name = config["args"].user_name
-        visualizeClass = importlib.import_module(
-            f"envs.{user_name}.{user_name}_visualize"
-        )
+        visualizeClass = importlib.import_module(f"envs.{user_name}.{user_name}_visualize")
         self.visualizer = getattr(visualizeClass, "visualizer")
 
     def warmup(self):
@@ -157,14 +155,10 @@ class BaseRunner(object):
         elif self.algorithm_name == "RMAPPO" or self.algorithm_name == "IPPO":
             next_values = self.trainer.policy.get_values(
                 shared_obs=np.concatenate(self.buffer.share_obs[-1]),
-                rnn_states_critic=np.concatenate(
-                    self.buffer.rnn_states_critic[-1]
-                ),
+                rnn_states_critic=np.concatenate(self.buffer.rnn_states_critic[-1]),
                 masks=np.concatenate(self.buffer.masks[-1]),
             )
-        next_values = np.array(
-            np.split(_t2n(next_values), self.num_rollout_threads)
-        )
+        next_values = np.array(np.split(_t2n(next_values), self.num_rollout_threads))
         self.buffer.compute_returns(
             next_values,
             value_normalizer=self.trainer.value_normalizer,

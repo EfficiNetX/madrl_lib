@@ -2,17 +2,17 @@ import copy
 import torch
 
 
-class QMIXTrainer:
+class QTrainer:
     def __init__(self, policy, mixer, args, logger=None):
         self.args = args
-        self.policy = policy  # QMIXPolicy
+        self.policy = policy  # QPolicy
         self.mixer = mixer  # QMixer
         self.logger = logger
         self.target_policy = copy.deepcopy(policy)
         self.target_mixer = copy.deepcopy(mixer)
 
         self.last_target_update_episode = 0
-        self.qmix_target_update_interval = args.qmix_target_update_interval
+        self.target_network_update_interval = args.target_network_update_interval
         self.log_interval = args.log_interval
         self.learned_steps = 0
         self.loss_list = []
@@ -70,7 +70,7 @@ class QMIXTrainer:
         not_all_done = (
             (~batch["dones"]).any(dim=2, keepdim=True).float()
         )  # (batch, episode_length, 1)
-        target = rewards + self.args.qmix_gamma * mixed_target_max_qvals * not_all_done
+        target = rewards + self.args.gamma * mixed_target_max_qvals * not_all_done
         td_errors = mixed_chosen_action_qvals - target.detach()
         # 1ステップのTD誤差の２乗の平均値を取得する
         loss = (td_errors**2 * (~batch["mask"]).unsqueeze(-1)).sum() / (~batch["mask"]).sum()
@@ -102,9 +102,9 @@ class QMIXTrainer:
     def _should_update_targets(self):
         """ターゲットネットワークの更新が必要か判定"""
         return (
-            self.args.qmix_target_update_interval > 0
+            self.args.target_network_update_interval > 0
             and (self.learned_steps - self.last_target_update_episode)
-            >= self.qmix_target_update_interval
+            >= self.target_network_update_interval
         )
 
     def _update_targets(self):
@@ -123,10 +123,10 @@ class QMIXTrainer:
     def _clip_gradients(self):
         """QネットワークとMixerの勾配クリッピング処理"""
         torch.nn.utils.clip_grad_norm_(
-            self.policy.agent_q_network.parameters(), self.args.grad_norm_clip
+            self.policy.agent_q_network.parameters(), self.args.max_grad_norm
         )
         if self.mixer is not None:
-            torch.nn.utils.clip_grad_norm_(self.mixer.parameters(), self.args.grad_norm_clip)
+            torch.nn.utils.clip_grad_norm_(self.mixer.parameters(), self.args.max_grad_norm)
 
     def _mix_q_values(self, agent_qvals, share_obs, mixer):
         """

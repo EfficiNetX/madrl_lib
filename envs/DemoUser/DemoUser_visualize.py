@@ -76,8 +76,8 @@ def visualizer(
             # 報酬の値を表示（t>0のときのみ）
             # 矢印・バツの描画
 
-            visualize_action(ax, x, y, action_list[t][i][0])
-            visualize_reward(
+            _visualize_action(ax, x, y, action_list[t][i][0])
+            _visualize_reward(
                 ax,
                 x,
                 y,
@@ -97,7 +97,7 @@ def visualizer(
     print("✅ GIF保存完了: DemoUser.gif")
 
 
-def visualize_action(ax, x, y, action):
+def _visualize_action(ax, x, y, action):
     """(x, y)の位置に、actionに応じた矢印や記号をテキストで表示する"""
 
     # アクションに対応する記号を定義
@@ -123,7 +123,7 @@ def visualize_action(ax, x, y, action):
         )
 
 
-def visualize_reward(ax, x, y, reward, color):
+def _visualize_reward(ax, x, y, reward, color):
     """Draw the reward value above the agent at (x, y) on ax."""
     ax.text(
         x,

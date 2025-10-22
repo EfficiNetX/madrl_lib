@@ -10,7 +10,7 @@ class EpisodeReplayBuffer:
         share_obs_space,
         action_space,
     ):
-        self.buffer_size = args.qmix_buffer_size
+        self.buffer_size = args.buffer_size
         self.episode_length = args.episode_length
         self.num_rollout_threads = args.num_rollout_threads
         self.num_agents = num_agents
@@ -19,7 +19,7 @@ class EpisodeReplayBuffer:
         self.action_space = action_space
         self.buffer_index = 0
         self.episodes_in_buffer = 0  # バッファに保存されているエピソード数
-        self.buffer_size = args.qmix_buffer_size
+        self.buffer_size = args.buffer_size
         self.share_obs_dim = len(share_obs_space)
         self.obs_dim = len(obs_space)
 

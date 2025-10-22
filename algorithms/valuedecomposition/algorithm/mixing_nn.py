@@ -11,7 +11,7 @@ class QMixer(nn.Module):
         self.num_agents = args.num_agents
         self.obs_dim = len(obs_space)
         self.shared_obs_dim = len(share_obs_space)
-        self.embed_dim = args.qmix_mixer_embed_dim
+        self.embed_dim = args.mixer_embed_dim
 
         # ハイパーネットの層数
         print("obs_dim in QMixer:", self.obs_dim)
@@ -23,7 +23,7 @@ class QMixer(nn.Module):
             self.hyper_w_1 = nn.Linear(self.shared_obs_dim, self.embed_dim * self.num_agents)
             self.hyper_w_final = nn.Linear(self.shared_obs_dim, self.embed_dim)
         elif hypernet_layers == 2:
-            hypernet_embed = args.qmix_hypernet_embed_dim
+            hypernet_embed = args.hypernet_embed_dim
             self.hyper_w_1 = nn.Sequential(
                 nn.Linear(self.shared_obs_dim, hypernet_embed),
                 nn.ReLU(),
@@ -54,7 +54,6 @@ class QMixer(nn.Module):
         batch_size = agent_qs.size(0)
         shared_obs = shared_obs.reshape(-1, self.shared_obs_dim)
         agent_qs = agent_qs.view(-1, 1, self.num_agents)
-        
 
         w1 = th.abs(self.hyper_w_1(shared_obs))
         b1 = self.hyper_b_1(shared_obs)

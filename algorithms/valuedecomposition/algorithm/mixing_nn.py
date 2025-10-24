@@ -1,4 +1,4 @@
-import torch as th
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
@@ -20,7 +20,9 @@ class QMixer(nn.Module):
         print("embed_dim in QMixer:", self.embed_dim)
         hypernet_layers = getattr(args, "hypernet_layers", 1)
         if hypernet_layers == 1:
-            self.hyper_w_1 = nn.Linear(self.shared_obs_dim, self.embed_dim * self.num_agents)
+            self.hyper_w_1 = nn.Linear(
+                self.shared_obs_dim, self.embed_dim * self.num_agents
+            )
             self.hyper_w_final = nn.Linear(self.shared_obs_dim, self.embed_dim)
         elif hypernet_layers == 2:
             hypernet_embed = args.hypernet_embed_dim
@@ -35,7 +37,9 @@ class QMixer(nn.Module):
                 nn.Linear(hypernet_embed, self.embed_dim),
             )
         else:
-            raise Exception("Error: Only 1 or 2 hypernet layers are supported.")
+            raise Exception(
+                "Error: Only 1 or 2 hypernet layers are supported."
+            )
 
         self.hyper_b_1 = nn.Linear(self.shared_obs_dim, self.embed_dim)
         self.V = nn.Sequential(
@@ -45,7 +49,9 @@ class QMixer(nn.Module):
         )
         self.to(self.args.device)
 
-    def forward(self, agent_qs, shared_obs):
+    def forward(
+        self, agent_qs: torch.Tensor, shared_obs: torch.Tensor
+    ) -> torch.Tensor:
         """
         agent_qs: (batch_size, n_agents) # 各エージェントのQ値
         shared_obs: (batch_size, shared_obs_dim) # 各エージェントのshared観測
@@ -55,17 +61,17 @@ class QMixer(nn.Module):
         shared_obs = shared_obs.reshape(-1, self.shared_obs_dim)
         agent_qs = agent_qs.view(-1, 1, self.num_agents)
 
-        w1 = th.abs(self.hyper_w_1(shared_obs))
+        w1 = torch.abs(self.hyper_w_1(shared_obs))
         b1 = self.hyper_b_1(shared_obs)
         w1 = w1.view(-1, self.num_agents, self.embed_dim)
         b1 = b1.view(-1, 1, self.embed_dim)
 
-        hidden = F.elu(th.bmm(agent_qs, w1) + b1)
+        hidden = F.elu(torch.bmm(agent_qs, w1) + b1)
 
-        w_final = th.abs(self.hyper_w_final(shared_obs))
+        w_final = torch.abs(self.hyper_w_final(shared_obs))
         w_final = w_final.view(-1, self.embed_dim, 1)
         v = self.V(shared_obs).view(-1, 1, 1)
 
-        y = th.bmm(hidden, w_final) + v
+        y = torch.bmm(hidden, w_final) + v
         q_tot = y.view(batch_size, -1, 1)
         return q_tot

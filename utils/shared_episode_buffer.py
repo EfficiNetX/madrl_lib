@@ -86,14 +86,14 @@ class EpisodeReplayBuffer:
 
     def _assign_buffer(
         self,
-        idx,
-        share_obs,
-        obs,
-        actions,
-        rewards,
-        dones,
-        mask,
-        avail_actions,
+        idx: slice,
+        share_obs: np.ndarray,
+        obs: np.ndarray,
+        actions: np.ndarray,
+        rewards: np.ndarray,
+        dones: np.ndarray,
+        mask: np.ndarray,
+        avail_actions: np.ndarray,
         offset: int = 0,
     ):
         length = idx.stop - idx.start
@@ -108,13 +108,13 @@ class EpisodeReplayBuffer:
 
     def insert(
         self,
-        share_obs,
-        obs,
-        actions,
-        rewards,
-        dones,
-        mask,
-        avail_actions,
+        share_obs: np.ndarray,
+        obs: np.ndarray,
+        actions: np.ndarray,
+        rewards: np.ndarray,
+        dones: np.ndarray,
+        mask: np.ndarray,
+        avail_actions: np.ndarray,
     ):
         """
         他のBufferクラスと統一したインターフェース
@@ -130,7 +130,9 @@ class EpisodeReplayBuffer:
         """
         # 直接numpy配列に代入（他のBufferと同じパターン）
         if self.buffer_index + self.num_rollout_threads <= self.buffer_size:
-            idx = slice(self.buffer_index, self.buffer_index + self.num_rollout_threads)
+            idx = slice(
+                self.buffer_index, self.buffer_index + self.num_rollout_threads
+            )
             self._assign_buffer(
                 idx,
                 share_obs,
@@ -143,10 +145,14 @@ class EpisodeReplayBuffer:
                 offset=0,
             )
             self.buffer_index += self.num_rollout_threads
-            self.episodes_in_buffer = max(self.episodes_in_buffer, self.buffer_index)
+            self.episodes_in_buffer = max(
+                self.episodes_in_buffer, self.buffer_index
+            )
         else:
             # バッファがオーバーフローする場合
-            overflow = self.buffer_index + self.num_rollout_threads - self.buffer_size
+            overflow = (
+                self.buffer_index + self.num_rollout_threads - self.buffer_size
+            )
             # 前半部分
             idx_first = slice(self.buffer_index, self.buffer_size)
             num_first = self.buffer_size - self.buffer_index
@@ -177,11 +183,13 @@ class EpisodeReplayBuffer:
             )
             self.buffer_index = overflow
 
-    def can_sample(self, batch_size):
+    def can_sample(self, batch_size: int) -> bool:
         return self.episodes_in_buffer >= batch_size
 
-    def sample(self, batch_size):
-        indices = np.random.choice(self.episodes_in_buffer, batch_size, replace=False)
+    def sample(self, batch_size: int) -> dict:
+        indices = np.random.choice(
+            self.episodes_in_buffer, batch_size, replace=False
+        )
         batch = dict(
             share_obs=self.share_obs[indices],
             obs=self.obs[indices],

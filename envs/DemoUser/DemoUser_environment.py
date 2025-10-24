@@ -109,7 +109,7 @@ class DemoUserMultiAgentEnv:
             reward_n = [[r] for r in reward_n]
         return obs_n, reward_n, done_n
 
-    def get_avail_actions(self):
+    def get_avail_actions(self) -> list[list[bool]]:
         avail_actions_n = []
         for i, agent in enumerate(self.agents):
             x, y = agent.state.coor

@@ -13,16 +13,20 @@ class ValueMainRunner(BaseRunner):
     def __init__(self, config):
         super().__init__(config)
 
-    def run(self):
+    def run(self) -> None:
         t_env = 0  # 環境ステップ数のカウンタ
         start = time.time()
-        episodes = int(self.num_env_steps) // self.episode_length // self.num_rollout_threads
+        episodes = (
+            int(self.num_env_steps)
+            // self.episode_length
+            // self.num_rollout_threads
+        )
         for episode in range(episodes):
             # epsilonの線形減衰
             self.trainer.policy.update_epsilon(t_env)
             # visualize用にデータを保存するリストを定義
             obs_list, reward_list, action_list = [], [], []
-            # 収集用バッファはすべてNumPyで確保
+            # エピソード保存用のバッファ
             obs_buf = np.zeros(
                 (
                     self.num_rollout_threads,
@@ -33,21 +37,35 @@ class ValueMainRunner(BaseRunner):
                 dtype=np.float32,
             )
             rewards_buf = np.zeros(
-                (self.num_rollout_threads, self.episode_length, self.num_agents, 1),
+                (
+                    self.num_rollout_threads,
+                    self.episode_length,
+                    self.num_agents,
+                    1,
+                ),
                 dtype=np.float32,
             )
             dones_buf = np.zeros(
-                (self.num_rollout_threads, self.episode_length, self.num_agents),
+                (
+                    self.num_rollout_threads,
+                    self.episode_length,
+                    self.num_agents,
+                ),
                 dtype=bool,
             )
             actions_buf = np.zeros(
-                (self.num_rollout_threads, self.episode_length, self.num_agents, 1),
+                (
+                    self.num_rollout_threads,
+                    self.episode_length,
+                    self.num_agents,
+                    1,
+                ),
                 dtype=np.int64,
             )
             mask_buf = np.ones(
                 (self.num_rollout_threads, self.episode_length),
                 dtype=bool,
-            )  # (num_rollout_threads, episode_length) (bool)
+            )
             avail_actions_buf = np.ones(
                 (
                     self.num_rollout_threads,
@@ -57,16 +75,15 @@ class ValueMainRunner(BaseRunner):
                 ),
                 dtype=bool,
             )
-            # 環境をリセットして初期観測を取得 && hidden stateの初期化
             self.warmup()
             mask_buf[:, 0] = False  # エピソード開始直後は全環境未終了
             obs_buf[:, 0] = self.initial_obs  # numpy
-            avail_actions = self.envs.get_avail_actions().astype(bool)
-            avail_actions_buf[:, 0] = avail_actions
-            # 直近の状態（numpy）を保持
-            obs = self.initial_obs
+            avail_actions_buf[:, 0] = self.envs.get_avail_actions()
+            obs = self.initial_obs  # numpy
             # 初期donesはFalse
-            dones = np.zeros((self.num_rollout_threads, self.num_agents), dtype=bool)
+            dones = np.zeros(
+                (self.num_rollout_threads, self.num_agents), dtype=bool
+            )
             for step in range(self.episode_length):
                 # 方策はtorch入力を想定、この時点のobs/donesだけ最小限に変換
                 actions, actions_env = self.collect(obs, dones)
@@ -86,7 +103,9 @@ class ValueMainRunner(BaseRunner):
 
             # バッファへ挿入（位置引数で渡す）
             self.insert(
-                shared_obs=obs_buf.reshape(self.num_rollout_threads, self.episode_length + 1, -1),
+                shared_obs=obs_buf.reshape(
+                    self.num_rollout_threads, self.episode_length + 1, -1
+                ),
                 obs=obs_buf,
                 actions=actions_buf,
                 rewards=rewards_buf,
@@ -99,7 +118,9 @@ class ValueMainRunner(BaseRunner):
                 episode_samples = self.buffer.sample(self.all_args.batch_size)
                 self.trainer.train(episode_samples)
 
-            total_num_steps = (episode + 1) * self.episode_length * self.num_rollout_threads
+            total_num_steps = (
+                (episode + 1) * self.episode_length * self.num_rollout_threads
+            )
 
             if episode % self.log_interval == 0:
                 print(
@@ -119,7 +140,8 @@ class ValueMainRunner(BaseRunner):
                     print(
                         "agent {}: average episode rewards is {}".format(
                             agent_id,
-                            np.mean(rewards_buf[:, :, agent_id, :]) * self.episode_length,
+                            np.mean(rewards_buf[:, :, agent_id, :])
+                            * self.episode_length,
                         )
                     )
                 self.visualizer(
@@ -129,8 +151,16 @@ class ValueMainRunner(BaseRunner):
                     action_list=action_list,
                 )
 
-    def insert(self, shared_obs, obs, actions, rewards, dones, mask, avail_actions):
-        # BufferのAPIに合わせて，selfに保持した各配列を渡す
+    def insert(
+        self,
+        shared_obs: np.ndarray,
+        obs: np.ndarray,
+        actions: np.ndarray,
+        rewards: np.ndarray,
+        dones: np.ndarray,
+        mask: np.ndarray,
+        avail_actions: np.ndarray,
+    ) -> None:
         self.buffer.insert(
             shared_obs,
             obs,
@@ -141,11 +171,15 @@ class ValueMainRunner(BaseRunner):
             avail_actions,
         )
 
-    def collect(self, obs_np, dones_np) -> torch.Tensor:
+    def collect(
+        self, obs_np: np.ndarray, dones_np: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
         # numpy -> torch（最小限の変換のみ）
         obs_t = torch.from_numpy(obs_np).float().to(self.all_args.device)
         dones_t = torch.from_numpy(dones_np).bool().to(self.all_args.device)
-        actions = self.trainer.policy.get_actions(obs_t, dones_t, deterministic=False)
+        actions = self.trainer.policy.get_actions(
+            obs_t, dones_t, deterministic=False
+        )
         # actionsをnumpyに変換
         actions = actions.cpu().numpy().astype(np.int64)
         # one-hot化（numpy）

@@ -24,7 +24,11 @@ class UserEnvRunner(BaseRunner):
         self.warmup()
         start = time.time()
 
-        episodes = int(self.num_env_steps) // self.episode_length // self.num_rollout_threads
+        episodes = (
+            int(self.num_env_steps)
+            // self.episode_length
+            // self.num_rollout_threads
+        )
         for episode in range(episodes):
 
             if self.use_linear_lr_decay:
@@ -69,7 +73,9 @@ class UserEnvRunner(BaseRunner):
             self.compute()
             _ = self.train()
             # post process
-            total_num_steps = (episode + 1) * self.episode_length * self.num_rollout_threads
+            total_num_steps = (
+                (episode + 1) * self.episode_length * self.num_rollout_threads
+            )
 
             if episode % self.log_interval == 0:
                 print(
@@ -89,7 +95,8 @@ class UserEnvRunner(BaseRunner):
                     print(
                         "agent {}: average episode rewards is {}".format(
                             agent_id,
-                            np.mean(self.buffer.rewards[:, :, agent_id, :]) * self.episode_length,
+                            np.mean(self.buffer.rewards[:, :, agent_id, :])
+                            * self.episode_length,
                         )
                     )
                 self.visualizer(
@@ -122,7 +129,9 @@ class UserEnvRunner(BaseRunner):
                 shared_obs=np.concatenate(self.buffer.share_obs[step]),
                 obs=np.concatenate(self.buffer.obs[step]),
                 rnn_states_actor=np.concatenate(self.buffer.rnn_states[step]),
-                rnn_states_critic=np.concatenate(self.buffer.rnn_states_critic[step]),
+                rnn_states_critic=np.concatenate(
+                    self.buffer.rnn_states_critic[step]
+                ),
                 masks=np.concatenate(self.buffer.masks[step]),
             )
         )
@@ -130,13 +139,21 @@ class UserEnvRunner(BaseRunner):
         # (self.envs, agents, dim)
         values = np.array(np.split(_t2n(value), self.num_rollout_threads))
         actions = np.array(np.split(_t2n(action), self.num_rollout_threads))
-        action_log_probs = np.array(np.split(_t2n(action_log_prob), self.num_rollout_threads))
-        rnn_states_actor = np.array(np.split(_t2n(rnn_states_actor), self.num_rollout_threads))
-        rnn_states_critic = np.array(np.split(_t2n(rnn_states_critic), self.num_rollout_threads))
+        action_log_probs = np.array(
+            np.split(_t2n(action_log_prob), self.num_rollout_threads)
+        )
+        rnn_states_actor = np.array(
+            np.split(_t2n(rnn_states_actor), self.num_rollout_threads)
+        )
+        rnn_states_critic = np.array(
+            np.split(_t2n(rnn_states_critic), self.num_rollout_threads)
+        )
 
         # rearange action
         num_actions = len(self.envs.action_space[0])
-        actions_env = np.eye(num_actions)[actions]  # [B, N, 1] -> [B, N, 1, num_actions]
+        actions_env = np.eye(num_actions)[
+            actions
+        ]  # [B, N, 1] -> [B, N, 1, num_actions]
         actions_env = np.squeeze(actions_env, 2)  # 余計な次元を削除
 
         return (
@@ -167,12 +184,16 @@ class UserEnvRunner(BaseRunner):
             (dones.sum(), *self.buffer.rnn_states_critic.shape[3:]),
             dtype=np.float32,
         )
-        masks = np.ones((self.num_rollout_threads, self.num_agents, 1), dtype=np.float32)
+        masks = np.ones(
+            (self.num_rollout_threads, self.num_agents, 1), dtype=np.float32
+        )
         masks[dones] = np.zeros((dones.sum(), 1), dtype=np.float32)
 
         if self.use_centralized_V:
             share_obs = obs.reshape(self.num_rollout_threads, -1)
-            share_obs = np.expand_dims(share_obs, 1).repeat(self.num_agents, axis=1)
+            share_obs = np.expand_dims(share_obs, 1).repeat(
+                self.num_agents, axis=1
+            )
         else:
             share_obs = obs
         self.buffer.insert(

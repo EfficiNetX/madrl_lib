@@ -39,13 +39,11 @@ class QTrainer:
             "avail_actions": torch.tensor(episode_batch["avail_actions"], device=self.args.device),
         }
         obs_t0 = batch["obs"][:, :-1]
-        mask_t0 = batch["mask"][:, :-1]
-        total_q_values = self._collect_qval(self.policy, obs_t0, mask_t0)
+        total_q_values = self._collect_qval(self.policy, obs_t0)
         chosen_action_qvals = torch.gather(total_q_values, dim=3, index=batch["actions"]).squeeze(3)
 
         obs_t1 = batch["obs"][:, 1:]
-        mask_t1 = batch["mask"][:, 1:]
-        target_total_q_values = self._collect_qval(self.target_policy, obs_t1, mask_t1)
+        target_total_q_values = self._collect_qval(self.target_policy, obs_t1)
         for t in range(self.args.episode_length):
             unavailable_actions = batch["avail_actions"][:, t + 1] == 0
             target_total_q_values[:, t][unavailable_actions] = -1e10
@@ -72,20 +70,15 @@ class QTrainer:
         if self._should_update_targets():
             self._update_targets()
 
-    def _collect_qval(
-        self, network: torch.nn.Module, obs: torch.Tensor, mask: torch.Tensor
-    ) -> torch.Tensor:
+    def _collect_qval(self, network: torch.nn.Module, obs: torch.Tensor) -> torch.Tensor:
         """
         obs: (batch_size, episode_length, n_agents, obs_dim)
-        mask: (batch_size, episode_length) True=invalid, False=valid
         Returns: (batch_size, episode_length, n_agents, action_space)
         """
         total_q_values = []
         network.init_hidden(obs.shape[0])
         for t in range(obs.shape[1]):
-            # mask=Trueの時点（エピソード終了後）でhidden stateをリセット
-            done_mask = mask[:, t].unsqueeze(-1).float()
-            q_values = network.forward(obs[:, t], done_mask)
+            q_values = network.forward(obs[:, t], None)
             total_q_values.append(q_values)
         total_q_values = torch.stack(total_q_values, dim=1)
         return total_q_values

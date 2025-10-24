@@ -94,6 +94,7 @@ class ValueMainRunner(BaseRunner):
                 if step + 1 < self.episode_length:
                     # 全エージェント終了でTrue
                     mask_buf[:, step + 1] = dones.all(axis=1)
+                t_env += (~mask_buf)[:, step].sum()
 
             # バッファへ挿入（位置引数で渡す）
             self.insert(

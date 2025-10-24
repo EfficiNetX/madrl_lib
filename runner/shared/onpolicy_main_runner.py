@@ -16,11 +16,7 @@ class ValueMainRunner(BaseRunner):
     def run(self) -> None:
         t_env = 0  # 環境ステップ数のカウンタ
         start = time.time()
-        episodes = (
-            int(self.num_env_steps)
-            // self.episode_length
-            // self.num_rollout_threads
-        )
+        episodes = int(self.num_env_steps) // self.episode_length // self.num_rollout_threads
         for episode in range(episodes):
             # epsilonの線形減衰
             self.trainer.policy.update_epsilon(t_env)
@@ -81,9 +77,7 @@ class ValueMainRunner(BaseRunner):
             avail_actions_buf[:, 0] = self.envs.get_avail_actions()
             obs = self.initial_obs  # numpy
             # 初期donesはFalse
-            dones = np.zeros(
-                (self.num_rollout_threads, self.num_agents), dtype=bool
-            )
+            dones = np.zeros((self.num_rollout_threads, self.num_agents), dtype=bool)
             for step in range(self.episode_length):
                 # 方策はtorch入力を想定、この時点のobs/donesだけ最小限に変換
                 actions, actions_env = self.collect(obs, dones)
@@ -103,9 +97,7 @@ class ValueMainRunner(BaseRunner):
 
             # バッファへ挿入（位置引数で渡す）
             self.insert(
-                shared_obs=obs_buf.reshape(
-                    self.num_rollout_threads, self.episode_length + 1, -1
-                ),
+                shared_obs=obs_buf.reshape(self.num_rollout_threads, self.episode_length + 1, -1),
                 obs=obs_buf,
                 actions=actions_buf,
                 rewards=rewards_buf,
@@ -118,9 +110,7 @@ class ValueMainRunner(BaseRunner):
                 episode_samples = self.buffer.sample(self.all_args.batch_size)
                 self.trainer.train(episode_samples)
 
-            total_num_steps = (
-                (episode + 1) * self.episode_length * self.num_rollout_threads
-            )
+            total_num_steps = (episode + 1) * self.episode_length * self.num_rollout_threads
 
             if episode % self.log_interval == 0:
                 print(
@@ -140,8 +130,7 @@ class ValueMainRunner(BaseRunner):
                     print(
                         "agent {}: average episode rewards is {}".format(
                             agent_id,
-                            np.mean(rewards_buf[:, :, agent_id, :])
-                            * self.episode_length,
+                            np.mean(rewards_buf[:, :, agent_id, :]) * self.episode_length,
                         )
                     )
                 self.visualizer(
@@ -171,15 +160,11 @@ class ValueMainRunner(BaseRunner):
             avail_actions,
         )
 
-    def collect(
-        self, obs_np: np.ndarray, dones_np: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray]:
+    def collect(self, obs_np: np.ndarray, dones_np: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         # numpy -> torch（最小限の変換のみ）
         obs_t = torch.from_numpy(obs_np).float().to(self.all_args.device)
         dones_t = torch.from_numpy(dones_np).bool().to(self.all_args.device)
-        actions = self.trainer.policy.get_actions(
-            obs_t, dones_t, deterministic=False
-        )
+        actions = self.trainer.policy.get_actions(obs_t, dones_t, deterministic=False)
         # actionsをnumpyに変換
         actions = actions.cpu().numpy().astype(np.int64)
         # one-hot化（numpy）

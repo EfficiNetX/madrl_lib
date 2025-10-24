@@ -12,17 +12,9 @@ class QMixer(nn.Module):
         self.obs_dim = len(obs_space)
         self.shared_obs_dim = len(share_obs_space)
         self.embed_dim = args.mixer_embed_dim
-
-        # ハイパーネットの層数
-        print("obs_dim in QMixer:", self.obs_dim)
-        print("num_agents in QMixer:", self.num_agents)
-        print("shared_obs_dim in QMixer:", self.shared_obs_dim)
-        print("embed_dim in QMixer:", self.embed_dim)
         hypernet_layers = getattr(args, "hypernet_layers", 1)
         if hypernet_layers == 1:
-            self.hyper_w_1 = nn.Linear(
-                self.shared_obs_dim, self.embed_dim * self.num_agents
-            )
+            self.hyper_w_1 = nn.Linear(self.shared_obs_dim, self.embed_dim * self.num_agents)
             self.hyper_w_final = nn.Linear(self.shared_obs_dim, self.embed_dim)
         elif hypernet_layers == 2:
             hypernet_embed = args.hypernet_embed_dim
@@ -37,9 +29,7 @@ class QMixer(nn.Module):
                 nn.Linear(hypernet_embed, self.embed_dim),
             )
         else:
-            raise Exception(
-                "Error: Only 1 or 2 hypernet layers are supported."
-            )
+            raise Exception("Error: Only 1 or 2 hypernet layers are supported.")
 
         self.hyper_b_1 = nn.Linear(self.shared_obs_dim, self.embed_dim)
         self.V = nn.Sequential(
@@ -49,9 +39,7 @@ class QMixer(nn.Module):
         )
         self.to(self.args.device)
 
-    def forward(
-        self, agent_qs: torch.Tensor, shared_obs: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, agent_qs: torch.Tensor, shared_obs: torch.Tensor) -> torch.Tensor:
         """
         agent_qs: (batch_size, n_agents) # 各エージェントのQ値
         shared_obs: (batch_size, shared_obs_dim) # 各エージェントのshared観測

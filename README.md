@@ -8,6 +8,13 @@
     3. IPPOを実行したい場合は```uv run main.py --algorithm_name IPPO```
     4. HAPPOを実行したい場合は```uv run main.py --algorithm_name HAPPO```
 
+Dockerコンテナを利用するには、
+```
+# ビルド
+docker build -t madrl-lib:cu124 .
+# GPU を可視化して実行（プロジェクトのCMDが走る）
+docker run --rm --gpus all madrl-lib:cu124
+```
 
 
 # DemoUserの環境

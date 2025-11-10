@@ -128,6 +128,13 @@ class EpisodeReplayBuffer:
             mask: (num_envs, episode_length)
             avail_actions: (num_envs, episode_length + 1, num_agents, action_dim)
         """
+        share_obs = share_obs.copy()
+        obs = obs.copy()
+        actions = actions.copy()
+        rewards = rewards.copy()
+        dones = dones.copy()
+        mask = mask.copy()
+        avail_actions = avail_actions.copy()
         # 直接numpy配列に代入（他のBufferと同じパターン）
         if self.buffer_index + self.num_rollout_threads <= self.buffer_size:
             idx = slice(self.buffer_index, self.buffer_index + self.num_rollout_threads)

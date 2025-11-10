@@ -1,7 +1,7 @@
-import webbrowser
-import matplotlib.pyplot as plt
-import imageio.v2 as imageio
 import os
+
+import imageio.v2 as imageio
+import matplotlib.pyplot as plt
 import numpy as np
 
 
@@ -89,7 +89,7 @@ def visualizer(
         plt.savefig(dir_name + f"/{t}.png")
         plt.close()
     # GIF作成
-    with imageio.get_writer(dir_name + f"/DemoUser.gif", duration=5.0) as writer:
+    with imageio.get_writer(dir_name + "/DemoUser.gif", duration=5.0) as writer:
         for t in range(len(obs_list) + 1):
             image = imageio.imread(dir_name + f"/{t}.png")
             writer.append_data(image)

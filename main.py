@@ -42,7 +42,7 @@ def main(args):
 
     # QMIXを動かすためのdemoコード
     if args.algorithm_name == "QMIX" or args.algorithm_name == "VDN":
-        from runner.shared.onpolicy_main_runner import (
+        from runner.shared.offpolicy_main_runner import (
             OnPolicyMainRunner as Runner,
         )
 

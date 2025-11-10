@@ -1,4 +1,5 @@
 import copy
+
 import torch
 
 
@@ -30,17 +31,23 @@ class QTrainer:
         """
         self.learned_steps += 1
         batch = {
-            "share_obs": torch.tensor(episode_batch["share_obs"], device=self.args.device),
+            "share_obs": torch.tensor(
+                episode_batch["share_obs"], device=self.args.device
+            ),
             "obs": torch.tensor(episode_batch["obs"], device=self.args.device),
             "actions": torch.tensor(episode_batch["actions"], device=self.args.device),
             "rewards": torch.tensor(episode_batch["rewards"], device=self.args.device),
             "dones": torch.tensor(episode_batch["dones"], device=self.args.device),
             "mask": torch.tensor(episode_batch["mask"], device=self.args.device),
-            "avail_actions": torch.tensor(episode_batch["avail_actions"], device=self.args.device),
+            "avail_actions": torch.tensor(
+                episode_batch["avail_actions"], device=self.args.device
+            ),
         }
         obs_t0 = batch["obs"][:, :-1]
         total_q_values = self._collect_qval(self.policy, obs_t0)
-        chosen_action_qvals = torch.gather(total_q_values, dim=3, index=batch["actions"]).squeeze(3)
+        chosen_action_qvals = torch.gather(
+            total_q_values, dim=3, index=batch["actions"]
+        ).squeeze(3)
 
         obs_t1 = batch["obs"][:, 1:]
         target_total_q_values = self._collect_qval(self.target_policy, obs_t1)
@@ -60,8 +67,12 @@ class QTrainer:
         not_all_done = (~batch["dones"]).any(dim=2, keepdim=True).float()
         target = rewards + self.args.gamma * mixed_target_max_qvals * not_all_done
         td_errors = mixed_chosen_action_qvals - target.detach()
-        loss = (td_errors**2 * (~batch["mask"]).unsqueeze(-1)).sum() / (~batch["mask"]).sum()
-        self._log_training_progress(loss.item(), rewards.sum().item() / rewards.shape[0])
+        loss = (td_errors**2 * (~batch["mask"]).unsqueeze(-1)).sum() / (
+            ~batch["mask"]
+        ).sum()
+        # self._log_training_progress(
+        #     loss.item(), rewards.sum().item() / rewards.shape[0]
+        # )
 
         self.policy.optimizer.zero_grad()
         loss.backward()
@@ -70,7 +81,9 @@ class QTrainer:
         if self._should_update_targets():
             self._update_targets()
 
-    def _collect_qval(self, network: torch.nn.Module, obs: torch.Tensor) -> torch.Tensor:
+    def _collect_qval(
+        self, network: torch.nn.Module, obs: torch.Tensor
+    ) -> torch.Tensor:
         """
         obs: (batch_size, episode_length, n_agents, obs_dim)
         Returns: (batch_size, episode_length, n_agents, action_space)
@@ -98,7 +111,9 @@ class QTrainer:
         self.__update_targets()
 
     def __update_targets(self) -> None:
-        self.target_policy.agent_q_network.load_state_dict(self.policy.agent_q_network.state_dict())
+        self.target_policy.agent_q_network.load_state_dict(
+            self.policy.agent_q_network.state_dict()
+        )
         if self.mixer is not None:
             self.target_mixer.load_state_dict(self.mixer.state_dict())
         if self.logger is not None:
@@ -110,7 +125,9 @@ class QTrainer:
             self.policy.agent_q_network.parameters(), self.args.max_grad_norm
         )
         if self.mixer is not None:
-            torch.nn.utils.clip_grad_norm_(self.mixer.parameters(), self.args.max_grad_norm)
+            torch.nn.utils.clip_grad_norm_(
+                self.mixer.parameters(), self.args.max_grad_norm
+            )
 
     def _mix_q_values(
         self,

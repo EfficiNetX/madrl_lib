@@ -1,10 +1,9 @@
+import time
+
 import numpy as np
 import torch
 
 from runner.shared.base_runner import BaseRunner
-import time
-
-import importlib
 
 
 def _t2n(x):
@@ -20,17 +19,13 @@ class UserEnvRunner(BaseRunner):
     def run(
         self,
     ):
-
         self.warmup()
         start = time.time()
 
         episodes = (
-            int(self.num_env_steps)
-            // self.episode_length
-            // self.num_rollout_threads
+            int(self.num_env_steps) // self.episode_length // self.num_rollout_threads
         )
         for episode in range(episodes):
-
             if self.use_linear_lr_decay:
                 self.trainer.policy.lr_decay(episode, episodes)
 
@@ -129,9 +124,7 @@ class UserEnvRunner(BaseRunner):
                 shared_obs=np.concatenate(self.buffer.share_obs[step]),
                 obs=np.concatenate(self.buffer.obs[step]),
                 rnn_states_actor=np.concatenate(self.buffer.rnn_states[step]),
-                rnn_states_critic=np.concatenate(
-                    self.buffer.rnn_states_critic[step]
-                ),
+                rnn_states_critic=np.concatenate(self.buffer.rnn_states_critic[step]),
                 masks=np.concatenate(self.buffer.masks[step]),
             )
         )
@@ -191,9 +184,7 @@ class UserEnvRunner(BaseRunner):
 
         if self.use_centralized_V:
             share_obs = obs.reshape(self.num_rollout_threads, -1)
-            share_obs = np.expand_dims(share_obs, 1).repeat(
-                self.num_agents, axis=1
-            )
+            share_obs = np.expand_dims(share_obs, 1).repeat(self.num_agents, axis=1)
         else:
             share_obs = obs
         self.buffer.insert(

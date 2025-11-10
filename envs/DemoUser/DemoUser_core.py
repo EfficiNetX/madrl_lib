@@ -79,6 +79,4 @@ class World:
                         agent.state.coor = assumed_coor  # 動けるので座標を更新
                         occupied.append(assumed_coor)
             else:
-                occupied.append(
-                    agent.state.coor
-                )  # 枠からはみ出た場合はそのまま
+                occupied.append(agent.state.coor)  # 枠からはみ出た場合はそのまま

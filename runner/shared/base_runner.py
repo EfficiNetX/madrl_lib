@@ -1,6 +1,7 @@
+import importlib
+
 import numpy as np
 import torch
-import importlib
 
 
 def _t2n(x):
@@ -91,7 +92,7 @@ class BaseRunner(object):
             from algorithms.valuedecomposition.QTrainer import (
                 QTrainer as Trainer,
             )
-            from utils.shared_episode_buffer import (
+            from utils.offpolicy_shared_buffer import (
                 EpisodeReplayBuffer as ReplayBuffer,
             )
 
@@ -161,14 +162,10 @@ class BaseRunner(object):
         elif self.algorithm_name == "RMAPPO" or self.algorithm_name == "IPPO":
             next_values = self.trainer.policy.get_values(
                 shared_obs=np.concatenate(self.buffer.share_obs[-1]),
-                rnn_states_critic=np.concatenate(
-                    self.buffer.rnn_states_critic[-1]
-                ),
+                rnn_states_critic=np.concatenate(self.buffer.rnn_states_critic[-1]),
                 masks=np.concatenate(self.buffer.masks[-1]),
             )
-        next_values = np.array(
-            np.split(_t2n(next_values), self.num_rollout_threads)
-        )
+        next_values = np.array(np.split(_t2n(next_values), self.num_rollout_threads))
         self.buffer.compute_returns(
             next_values,
             value_normalizer=self.trainer.value_normalizer,

@@ -1,10 +1,6 @@
 import torch
-import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
-from algorithms.utils.rnn import RNNLayer
-from utils.util import update_linear_schedule
-from typing import Tuple
 
 
 class QPolicy:
@@ -26,7 +22,9 @@ class QPolicy:
         self.share_obs_dim = len(share_obs_space)
         self.action_dim = len(action_space)
 
-        self.agent_q_network = RNNAgent(self.obs_dim, self.hidden_size, self.action_dim, self.args)
+        self.agent_q_network = RNNAgent(
+            self.obs_dim, self.hidden_size, self.action_dim, self.args
+        )
         self.agent_q_network.to(self.args.device)
         self.epsilon = args.epsilon_start
 
@@ -62,7 +60,9 @@ class QPolicy:
                 0, action_dim, (batch_size, n_agents), device=q_values.device
             )
             greedy_actions = torch.argmax(q_values, dim=-1)
-            actions = torch.where(random_numbers < self.epsilon, random_actions, greedy_actions)
+            actions = torch.where(
+                random_numbers < self.epsilon, random_actions, greedy_actions
+            )
         actions = actions.view(batch_size, n_agents, 1)
         return actions
 

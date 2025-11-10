@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
 
 
 class QMixer(nn.Module):
@@ -14,7 +13,9 @@ class QMixer(nn.Module):
         self.embed_dim = args.mixer_embed_dim
         hypernet_layers = getattr(args, "hypernet_layers", 1)
         if hypernet_layers == 1:
-            self.hyper_w_1 = nn.Linear(self.shared_obs_dim, self.embed_dim * self.num_agents)
+            self.hyper_w_1 = nn.Linear(
+                self.shared_obs_dim, self.embed_dim * self.num_agents
+            )
             self.hyper_w_final = nn.Linear(self.shared_obs_dim, self.embed_dim)
         elif hypernet_layers == 2:
             hypernet_embed = args.hypernet_embed_dim

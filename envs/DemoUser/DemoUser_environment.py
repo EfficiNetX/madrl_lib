@@ -36,8 +36,7 @@ class DemoUserMultiAgentEnv:
             for _ in range(self.num_agents)
         ]
         self.share_observation_space = [
-            ([-1 for x in range(self.num_agents)] + [-1, -1, -1, -1])
-            * self.num_agents
+            ([-1 for x in range(self.num_agents)] + [-1, -1, -1, -1]) * self.num_agents
             for _ in range(self.num_agents)
         ]
         self.action_space = [
@@ -90,12 +89,7 @@ class DemoUserMultiAgentEnv:
             obs_n.append(
                 np.concatenate(
                     [
-                        np.array(
-                            [
-                                1 if j == i else 0
-                                for j in range(self.num_agents)
-                            ]
-                        ),
+                        np.array([1 if j == i else 0 for j in range(self.num_agents)]),
                         self._get_obs(agent),
                     ]
                 )

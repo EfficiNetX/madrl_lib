@@ -1,19 +1,88 @@
 arguments:
-  share_observation: {type: bool, default: true, help: "centralized_Vを計算するかどうか"}
-  share_policy: {type: bool, default: false, help: "Whether to use the same policy for all agents"}
-  use_centralized_V: {type: bool, default: true, help: "Whether to use centralized V function"}
-  hidden_size: {type: int, default: 64, help: "Dimension of QMixer networks"}
-  lr: {type: float, default: 5e-5, help: "learning rate"}
-  critic_lr: {type: float, default: 5e-4, help: "critic learning rate"}
-  opti_eps: {type: float, default: 1e-5, help: "optimizer epsilon"}
-  weight_decay: {type: float, default: 0, help: "weight decay"}
-  use_max_grad_norm: {type: bool, default: true, help: "by default, use max norm of gradients"}
-  max_grad_norm: {type: float, default: 10.0, help: "max norm of gradients"}
-  gamma: {type: float, default: 0.99, help: "discount factor"}
-  huber_delta: {type: float, default: 10.0, help: "coefficience of huber loss"}
-  buffer_size: {type: int, default: 10000, help: "QMIX、VDN用: リプレイバッファの最大エピソード数"}
-  batch_size: {type: int, default: 512, help: "QMIX用: 学習時にサンプリングするエピソード数"}
-  target_network_update_interval: {type: int, default: 2000, help: "QMIX用: ターゲットネットワークの更新間隔（学習回数）"}
-  epsilon_start: {type: float, default: 1.0, help: "QMIX用: ε-greedy探索の初期値"}
-  epsilon_final: {type: float, default: 0.05, help: "QMIX用: ε-greedy探索の最終値"}
-  epsilon_anneal_time: {type: int, default: 800000, help: "QMIX用: εを減衰させるステップ数"}
+  # ===============================================
+  # --- 1. アルゴリズム挙動 (固定: 変更不可) ---
+  # ===============================================。
+  
+  share_observation:
+    type: bool
+    default: true
+    readonly: true # 読み取り専用
+    help: "(QMIX-Fixed) CTDEのため観測を共有"
+    
+  use_centralized_V:
+    type: bool
+    default: true
+    readonly: true # 読み取り専用
+    help: "(QMIX-Fixed) CTDEのため中央集権Criticを使用"
+
+  share_policy:
+    type: bool
+    default: true
+    readonly: true # 読み取り専用
+    help: "(QMIX-Fixed) ポリシーを共有"
+
+  # ===============================================
+  # --- 2. 調整可能なハイパーパラメータ ---
+  # ===============================================
+
+  # --- ネットワーク & アーキテクチャ ---
+  hidden_size:
+    type: int
+    default: 64
+    help: "エージェント毎のRNN(Q)ネットワークの隠れ層次元"
+
+  # --- オプティマイザ & 学習率 ---
+  lr:
+    type: float
+    default: 5e-5
+    help: "学習率 (Q-NetworkとMixer共通)"
+  opti_eps:
+    type: float
+    default: 1e-5
+    help: "RMSprop optimizer epsilon"
+  weight_decay:
+    type: float
+    default: 0
+    help: "重み減衰"
+
+  # --- 損失 & 報酬シグナル ---
+  use_max_grad_norm:
+    type: bool
+    default: true # Trueで有効 (store_false)
+    help: "勾配クリッピングを有効にする"
+  max_grad_norm:
+    type: float
+    default: 10.0
+    help: "勾配クリッピングの最大値"
+  gamma:
+    type: float
+    default: 0.99
+    help: "割引率"
+
+  # --- リプレイバッファ & バッチ ---
+  buffer_size:
+    type: int
+    default: 10000
+    help: "リプレイバッファの最大エピソード数"
+  batch_size:
+    type: int
+    default: 512
+    help: "学習時にサンプリングするエピソード数"
+  target_network_update_interval:
+    type: int
+    default: 2000
+    help: "ターゲットネットワークの更新間隔（学習回数）"
+
+  # --- ε-greedy 探索 ---
+  epsilon_start:
+    type: float
+    default: 1.0
+    help: "ε-greedy探索の初期値"
+  epsilon_final:
+    type: float
+    default: 0.05
+    help: "ε-greedy探索の最終値"
+  epsilon_anneal_time:
+    type: int
+    default: 800000 # 8e5
+    help: "εを減衰させるステップ数"

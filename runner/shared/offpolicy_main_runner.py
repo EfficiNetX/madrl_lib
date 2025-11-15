@@ -18,7 +18,9 @@ class OnPolicyMainRunner(BaseRunner):
         t_env = 0  # 環境ステップ数のカウンタ
         start = time.time()
         episodes = (
-            int(self.num_env_steps) // self.episode_length // self.num_rollout_threads
+            int(self.all_args.num_env_steps)
+            // self.all_args.episode_length
+            // self.all_args.num_rollout_threads
         )
         for episode in range(episodes):
             # epsilonの線形減衰
@@ -29,11 +31,14 @@ class OnPolicyMainRunner(BaseRunner):
             self.warmup()
             obs = self.initial_obs  # numpy
             # 初期donesはFalse
-            dones = np.zeros((self.num_rollout_threads, self.num_agents), dtype=bool)
-            for step in range(self.episode_length):
+            dones = np.zeros(
+                (self.all_args.num_rollout_threads, self.all_args.num_agents),
+                dtype=bool,
+            )
+            for step in range(self.all_args.episode_length):
                 actions, actions_env = self.collect(obs, dones)
                 obs, rewards, dones = self.envs.step(actions_env)
-                if step != self.episode_length - 1:
+                if step != self.all_args.episode_length - 1:
                     obs_list.append(obs[0])
                 action_list.append(actions[0])
                 reward_list.append(rewards[0])
@@ -51,7 +56,9 @@ class OnPolicyMainRunner(BaseRunner):
             # バッファへ挿入（位置引数で渡す）
             self.insert(
                 shared_obs=self.obs_trajectory_buffer.reshape(
-                    self.num_rollout_threads, self.episode_length + 1, -1
+                    self.all_args.num_rollout_threads,
+                    self.all_args.episode_length + 1,
+                    -1,
                 ),
                 obs=self.obs_trajectory_buffer,
                 actions=self.actions_trajectory_buffer,
@@ -66,29 +73,31 @@ class OnPolicyMainRunner(BaseRunner):
                 self.trainer.train(episode_samples)
 
             total_num_steps = (
-                (episode + 1) * self.episode_length * self.num_rollout_threads
+                (episode + 1)
+                * self.all_args.episode_length
+                * self.all_args.num_rollout_threads
             )
 
-            if episode % self.log_interval == 0:
+            if episode % self.all_args.log_interval == 0:
                 print(
                     "Scenario {} Algo {} updates {}/{} episodes,"
                     " total num timesteps {}/{}, FPS {}.".format(
                         self.all_args.user_name,
-                        self.algorithm_name,
+                        self.all_args.algorithm_name,
                         episode,
                         episodes,
                         total_num_steps,
-                        self.num_env_steps,
+                        self.all_args.num_env_steps,
                         int(total_num_steps / (time.time() - start)),
                     )
                 )
 
-                for agent_id in range(self.num_agents):
+                for agent_id in range(self.all_args.num_agents):
                     print(
                         "agent {}: average episode rewards is {}".format(
                             agent_id,
                             np.mean(self.rewards_trajectory_buffer[:, :, agent_id, :])
-                            * self.episode_length,
+                            * self.all_args.episode_length,
                         )
                     )
                 self.visualizer(
@@ -112,7 +121,7 @@ class OnPolicyMainRunner(BaseRunner):
         self.rewards_trajectory_buffer[:, step] = rewards.copy()
         self.dones_trajectory_buffer[:, step] = dones.copy()
         self.avail_actions_trajectory_buffer[:, step + 1] = avail_actions.copy()
-        if step + 1 < self.episode_length:
+        if step + 1 < self.all_args.episode_length:
             # 全エージェント終了でTrue
             self.mask_trajectory_buffer[:, step + 1] = dones.all(axis=1)
 
@@ -158,51 +167,51 @@ class OnPolicyMainRunner(BaseRunner):
         obs = self.envs.reset()
         # 必要なら初期観測をバッファや変数に保存
         self.initial_obs = obs.copy()
-        self.policy.init_hidden(batch_size=self.num_rollout_threads)
+        self.policy.init_hidden(batch_size=self.all_args.num_rollout_threads)
         self.obs_trajectory_buffer = np.zeros(
             (
-                self.num_rollout_threads,
-                self.episode_length + 1,
-                self.num_agents,
+                self.all_args.num_rollout_threads,
+                self.all_args.episode_length + 1,
+                self.all_args.num_agents,
                 self.obs_dim,
             ),
             dtype=np.float32,
         )
         self.rewards_trajectory_buffer = np.zeros(
             (
-                self.num_rollout_threads,
-                self.episode_length,
-                self.num_agents,
+                self.all_args.num_rollout_threads,
+                self.all_args.episode_length,
+                self.all_args.num_agents,
                 1,
             ),
             dtype=np.float32,
         )
         self.dones_trajectory_buffer = np.zeros(
             (
-                self.num_rollout_threads,
-                self.episode_length,
-                self.num_agents,
+                self.all_args.num_rollout_threads,
+                self.all_args.episode_length,
+                self.all_args.num_agents,
             ),
             dtype=bool,
         )
         self.actions_trajectory_buffer = np.zeros(
             (
-                self.num_rollout_threads,
-                self.episode_length,
-                self.num_agents,
+                self.all_args.num_rollout_threads,
+                self.all_args.episode_length,
+                self.all_args.num_agents,
                 1,
             ),
             dtype=np.int64,
         )
         self.mask_trajectory_buffer = np.ones(
-            (self.num_rollout_threads, self.episode_length),
+            (self.all_args.num_rollout_threads, self.all_args.episode_length),
             dtype=bool,
         )
         self.avail_actions_trajectory_buffer = np.ones(
             (
-                self.num_rollout_threads,
-                self.episode_length + 1,
-                self.num_agents,
+                self.all_args.num_rollout_threads,
+                self.all_args.episode_length + 1,
+                self.all_args.num_agents,
                 self.action_dim,
             ),
             dtype=bool,

@@ -23,6 +23,11 @@ arguments:
     type: bool
     default: false # Falseで異質エージェント(MAT), Trueで同質(MAPPO)
     help: "エージェント間でポリシー(Actor)の重みを共有するか"
+
+  hidden_size:
+    type: int
+    default: 64
+    help: "MLP隠れ層の次元 (TransformerのFFNなどで使用)"
   
   layer_N:
     type: int

@@ -1,11 +1,12 @@
-from runner.separated.base_runner import BaseRunner
+import importlib
+import time
 from itertools import chain
+
 import numpy as np
 import torch
 
 from envs.DemoUser.DemoUser_visualize import visualizer
-import time
-import importlib
+from runner.separated.base_runner import BaseRunner
 
 
 def _t2n(x):
@@ -17,20 +18,26 @@ class UserEnvRunner(BaseRunner):
         super().__init__(config)
         # visualizerのimport
         user_name = config["args"].user_name
-        visualizeClass = importlib.import_module(f"envs.{user_name}.{user_name}_visualize")
+        visualizeClass = importlib.import_module(
+            f"envs.{user_name}.{user_name}_visualize"
+        )
         self.visualizer = getattr(visualizeClass, "visualizer")
 
     def run(self):
         self.warmup()
         start = time.time()
 
-        episodes = int(self.num_env_steps) // self.episode_length // self.num_rollout_threads
+        episodes = (
+            int(self.all_args.num_env_steps)
+            // self.all_args.episode_length
+            // self.all_args.num_rollout_threads
+        )
         for episode in range(episodes):
             print("episode ={}".format(episode))
-            if self.use_linear_lr_decay:
+            if self.all_args.use_linear_lr_decay:
                 self.trainer.policy.lr_decay(episode, episodes)
             obs_list, reward_list, action_list = [], [], []
-            for step in range(self.episode_length):
+            for step in range(self.all_args.episode_length):
                 # Sample actions
                 (
                     values,
@@ -57,7 +64,7 @@ class UserEnvRunner(BaseRunner):
 
                 # visualizeのためにデータを保存
                 if (
-                    step != self.episode_length - 1
+                    step != self.all_args.episode_length - 1
                 ):  # 最終ステップの次状態は可視化フレーム外に出るため保存しない
                     obs_list.append(obs[0])
                 reward_list.append(rewards[0])
@@ -67,25 +74,30 @@ class UserEnvRunner(BaseRunner):
             self.compute()
             train_infos = self.train()
             # post process
-            total_num_steps = (episode + 1) * self.episode_length * self.num_rollout_threads
-            if episode % self.log_interval == 0:
+            total_num_steps = (
+                (episode + 1)
+                * self.all_args.episode_length
+                * self.all_args.num_rollout_threads
+            )
+            if episode % self.all_args.log_interval == 0:
                 print(
                     "Scenario {} Algo {} updates {}/{} episodes,"
                     " total num timesteps {}/{}, FPS {}.".format(
                         self.all_args.user_name,
-                        self.algorithm_name,
+                        self.all_args.algorithm_name,
                         episode,
                         episodes,
                         total_num_steps,
-                        self.num_env_steps,
+                        self.all_args.num_env_steps,
                         int(total_num_steps / (time.time() - start)),
                     )
                 )
-                for agent_id in range(self.num_agents):
+                for agent_id in range(self.all_args.num_agents):
                     print(
                         "agent {}: average episode rewards is {}".format(
                             agent_id,
-                            np.mean(self.buffer[agent_id].rewards) * self.episode_length,
+                            np.mean(self.buffer[agent_id].rewards)
+                            * self.all_args.episode_length,
                         )
                     )
 
@@ -105,8 +117,8 @@ class UserEnvRunner(BaseRunner):
             share_obs.append(list(chain(*o)))
         share_obs = np.array(share_obs)
 
-        for agent_id in range(self.num_agents):
-            if not self.use_centralized_V:
+        for agent_id in range(self.all_args.num_agents):
+            if not self.all_args.use_centralized_V:
                 share_obs = np.array(list(obs[:, agent_id]))
             self.buffer[agent_id].share_obs[0] = share_obs.copy()
             self.buffer[agent_id].obs[0] = np.array(list(obs[:, agent_id])).copy()
@@ -120,7 +132,7 @@ class UserEnvRunner(BaseRunner):
         rnn_states = []
         rnn_states_critic = []
 
-        for agent_id in range(self.num_agents):
+        for agent_id in range(self.all_args.num_agents):
             self.trainer[agent_id].prep_rollout()
             action, action_log_prob, value, rnn_state, rnn_state_critic = self.trainer[
                 agent_id
@@ -149,7 +161,7 @@ class UserEnvRunner(BaseRunner):
 
         # [envs, agents, dim]
         actions_env = []
-        for i in range(self.num_rollout_threads):
+        for i in range(self.all_args.num_rollout_threads):
             one_hot_action_env = []
             for temp_action_env in temp_actions_env:
                 one_hot_action_env.append(temp_action_env[i])
@@ -182,11 +194,16 @@ class UserEnvRunner(BaseRunner):
             rnn_states_critic,
         ) = data
         rnn_states[dones] = np.zeros(
-            (dones.sum(), self.recurrent_N, self.hidden_size),
+            (dones.sum(), self.all_args.recurrent_N, self.all_args.hidden_size),
             dtype=np.float32,
         )
-        rnn_states_critic[dones] = np.zeros((dones.sum(), self.recurrent_N, self.hidden_size))
-        masks = np.ones((self.num_rollout_threads, self.num_agents, 1), dtype=np.float32)
+        rnn_states_critic[dones] = np.zeros(
+            (dones.sum(), self.all_args.recurrent_N, self.all_args.hidden_size)
+        )
+        masks = np.ones(
+            (self.all_args.num_rollout_threads, self.all_args.num_agents, 1),
+            dtype=np.float32,
+        )
         masks[dones] = np.zeros((dones.sum(), 1), dtype=np.float32)
 
         share_obs = []
@@ -194,8 +211,8 @@ class UserEnvRunner(BaseRunner):
             share_obs.append(list(chain(*o)))
         share_obs = np.array(share_obs)
 
-        for agent_id in range(self.num_agents):
-            if not self.use_centralized_V:
+        for agent_id in range(self.all_args.num_agents):
+            if not self.all_args.use_centralized_V:
                 share_obs = np.array(list(obs[:, agent_id]))
             self.buffer[agent_id].insert(
                 share_obs=share_obs,

@@ -55,7 +55,7 @@ def get_config():
             "MAT",
             "MAT_DEC",
         ],
-        default="MAT",
+        default=pre_args.algorithm_name,
         help="アルゴリズム名の指定",
     )
     parser.add_argument(

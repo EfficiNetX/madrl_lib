@@ -76,7 +76,8 @@ class QTrainer:
 
         self.policy.optimizer.zero_grad()
         loss.backward()
-        self._clip_gradients()
+        if self.args.use_max_grad_norm:
+            self._clip_gradients()
         self.policy.optimizer.step()
         if self._should_update_targets():
             self._update_targets()

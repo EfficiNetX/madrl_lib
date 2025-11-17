@@ -12,6 +12,7 @@
 
     ### ⚠️ 注意: yamlファイル内のパラメータのうち，「1. アルゴリズム挙動」の部分のパラメータは変更しないでください
 4. uv run main.py --algorithm_name "使用したいアルゴリズム名"で学習を実行します．その際，--algorithm_name には MAT，RMAPPO，IPPO，HAPPO，QMIX，VDN のいずれかを指定してください
+
    **▼ コマンド入力例**
    ```bash
    uv run main.py --algorithm_name MAT

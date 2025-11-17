@@ -1,2 +1,0 @@
-def LogisticsUserEnv(args):
-    pass

@@ -2,12 +2,35 @@
 本ライブラリはpython uvを使って依存関係を管理しています。
 1. ```uv {仮想環境名（なんでもよい、venvなど）}```として仮想環境を作り, その中に入る
 2. ```uv sync```で必要なパッケージをインストール
-3. config.pyで各種設定を行った後, 
-    1. MATを実行したい場合は```uv run main.py --share_policy --algorithm_name MAT```
-    2. RMAPPOを実行したい場合は```uv run main.py --share_policy --algorithm_name RMAPPO```. policyをシェアしたくない場合は```uv run main.py --algorithm_name RMAPPO```
-    3. IPPOを実行したい場合は```uv run main.py --algorithm_name IPPO```
-    4. HAPPOを実行したい場合は```uv run main.py --algorithm_name HAPPO```
+3. 使用するアルゴリズムのハイパーパラメータを調整
+    1. MATを使用する場合は，config/MAT.yaml内の各パラメータのdefault部分を変更してください．
+    2. RMAPPOを使用する場合は，config/RMAPPO.yaml内の各パラメータのdefault部分を変更してください．
+    3. IPPOを使用する場合は，config/IPPO.yaml内の各パラメータのdefault部分を変更してください．
+    4. HAPPOを使用する場合は，config/HAPPO.yaml内の各パラメータのdefault部分を変更してください．
+    5. QMIXを使用する場合は，config/QMIX.yaml内の各パラメータのdefault部分を変更してください．
+    6. VDNを使用する場合は，config/VDN.yaml内の各パラメータのdefault部分を変更してください．
 
+    ### ⚠️ 注意: yamlファイル内のパラメータのうち，「1. アルゴリズム挙動」の部分のパラメータは変更しないでください
+4. uv run main.py --algorithm_name "使用したいアルゴリズム名"で学習を実行します．その際，--algorithm_name には MAT，RMAPPO，IPPO，HAPPO，QMIX，VDN のいずれかを指定してください
+   **▼ コマンド入力例**
+   ```bash
+   uv run main.py --algorithm_name MAT
+   ```
+
+### 補足: 実行時の詳細設定
+以下のパラメータは，コマンドライン引数（`--`）で指定できます．
+* `--num_rollout_threads`: 並列環境数
+* `--episode_length`: エピソード長
+* `--num_agents`: エージェント数
+* `--num_env_steps`: 訓練する総ステップ数
+* `--use_env`: 使用する環境名
+* `--log_interval`: ログを表示するインターバル
+* `--user_name`: ユーザー名（WandB等のログ用）
+
+**▼ コマンド入力例**
+```bash
+uv run main.py --algorithm_name MAT --num_rollout_threads 32 --episode_length 50 --num_agents 4 --num_env_steps 10000000 --log_interval 1000 --user_name "DemoUser"
+```
 
 
 # DemoUserの環境

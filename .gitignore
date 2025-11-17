@@ -11,3 +11,6 @@ wheels/
 
 # DemoUser environment logs
 /envs/DemoUser/logs/
+
+# envs/LogisticsUser
+/envs/LogisticsUser/

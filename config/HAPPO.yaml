@@ -16,7 +16,7 @@ arguments:
     
   share_policy:
     type: bool
-    default: false # HAPPO (Heterogeneous) のためポリシーは共有しない
+    default: false # Heterogeneous対応のためポリシーは共有しない
     help: "エージェント間でポリシー(Actor)の重みを共有するか"
 
   use_centralized_V:

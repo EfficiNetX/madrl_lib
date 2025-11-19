@@ -72,7 +72,7 @@ class UserEnvRunner(BaseRunner):
 
             # compute return and update network
             self.compute()
-            train_infos = self.train()
+            _ = self.train()
             # post process
             total_num_steps = (
                 (episode + 1)

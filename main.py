@@ -1,8 +1,9 @@
-from config import get_config
+import importlib
+
 import torch
 
+from config import get_config
 from envs.env_wrappers import SubprocVecEnv
-import importlib
 
 
 def make_train_envs(args):
@@ -42,9 +43,7 @@ def main(args):
 
     # QMIXを動かすためのdemoコード
     if args.algorithm_name == "QMIX" or args.algorithm_name == "VDN":
-        from runner.shared.offpolicy_main_runner import (
-            OnPolicyMainRunner as Runner,
-        )
+        from runner.shared.offpolicy_main_runner import OffPolicyMainRunner as Runner
 
     runner = Runner(config)
     runner.run()

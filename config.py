@@ -92,12 +92,12 @@ def get_config():
         help="time duration between contiunous twice log printing.",
     )
     # アルゴリズムに応じてyamlファイルからハイパラを読み込む
-    config_dir = "config"
+    config_dir = "alg_config"
     defaults = {}
     type_map = {"int": int, "float": float, "str": str, "bool": bool}
     config_path = f"{config_dir}/{pre_args.algorithm_name}.yaml"
 
-    #設定ファイルの読み込み
+    # 設定ファイルの読み込み
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"{config_path} is not found.")
     else:
@@ -121,7 +121,7 @@ def get_config():
         if is_readonly:
             continue
 
-        if arg_type == bool:
+        if arg_type is bool:
             action = "store_true" if not default_val else "store_false"
             parser.add_argument(
                 arg_name,

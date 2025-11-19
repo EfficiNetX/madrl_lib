@@ -6,7 +6,7 @@ import torch
 from runner.shared.base_runner import BaseRunner
 
 
-class OnPolicyMainRunner(BaseRunner):
+class OffPolicyMainRunner(BaseRunner):
     """
     Value-basedアルゴリズム（QMIX/VDN等）用のメインRunnerクラス
     """

@@ -21,7 +21,7 @@ arguments:
 
   share_policy:
     type: bool
-    default: false # Falseで異質エージェント(MAT), Trueで同質(MAPPO)
+    default: true 
     help: "エージェント間でポリシー(Actor)の重みを共有するか"
 
   hidden_size:

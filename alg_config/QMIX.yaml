@@ -1,0 +1,102 @@
+arguments:
+  # ===============================================
+  # --- 1. アルゴリズム挙動 (固定: 変更不可) ---
+  # ===============================================。
+  
+  share_observation:
+    type: bool
+    default: true
+    readonly: true # 読み取り専用
+    help: "(QMIX-Fixed) CTDEのため観測を共有"
+    
+  use_centralized_V:
+    type: bool
+    default: true
+    readonly: true # 読み取り専用
+    help: "(QMIX-Fixed) CTDEのため中央集権Criticを使用"
+
+  share_policy:
+    type: bool
+    default: true
+    readonly: true # 読み取り専用
+    help: "(QMIX-Fixed) ポリシーを共有"
+
+  # ===============================================
+  # --- 2. 調整可能なハイパーパラメータ ---
+  # ===============================================
+
+  # --- ネットワーク & アーキテクチャ ---
+  hidden_size:
+    type: int
+    default: 256
+    help: "エージェント毎のRNN(Q)ネットワークの隠れ層次元"
+
+  # --- オプティマイザ & 学習率 ---
+  lr:
+    type: float
+    default: 5e-5
+    help: "学習率 (Q-NetworkとMixer共通)"
+  opti_eps:
+    type: float
+    default: 1e-5
+    help: "RMSprop optimizer epsilon"
+  weight_decay:
+    type: float
+    default: 0
+    help: "重み減衰"
+
+  # --- 損失 & 報酬シグナル ---
+  use_max_grad_norm:
+    type: bool
+    default: true # Trueで有効 (store_false)
+    help: "勾配クリッピングを有効にする"
+  max_grad_norm:
+    type: float
+    default: 10.0
+    help: "勾配クリッピングの最大値"
+  gamma:
+    type: float
+    default: 0.99
+    help: "割引率"
+
+  # --- リプレイバッファ & バッチ ---
+  buffer_size:
+    type: int
+    default: 10000
+    help: "リプレイバッファの最大エピソード数"
+  batch_size:
+    type: int
+    default: 512
+    help: "学習時にサンプリングするエピソード数"
+  target_network_update_interval:
+    type: int
+    default: 2000
+    help: "ターゲットネットワークの更新間隔（学習回数）"
+
+  # --- ε-greedy 探索 ---
+  epsilon_start:
+    type: float
+    default: 1.0
+    help: "ε-greedy探索の初期値"
+  epsilon_final:
+    type: float
+    default: 0.05
+    help: "ε-greedy探索の最終値"
+  epsilon_anneal_time:
+    type: int
+    default: 360000000 
+    help: "εを減衰させるステップ数"
+
+  # --- QMIX ミキサー & ハイパーネットワーク ---
+  mixer_embed_dim:
+    type: int
+    default: 32
+    help: "Mixerネットワークの埋め込み次元"
+  hypernet_layers:
+    type: int
+    default: 2
+    help: "ハイパーネットワークの層数 (1 or 2)"
+  hypernet_embed_dim:
+    type: int
+    default: 32
+    help: "ハイパーネットワークの埋め込み次元"

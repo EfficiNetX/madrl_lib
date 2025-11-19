@@ -23,7 +23,7 @@ arguments:
 
   share_policy:
     type: bool
-    default: false # Falseで異質エージェント(RMAPPO), Trueで同質(MAPPO)
+    default: true # すべてのエージェントが同じ方策を使うかどうか。defaultは使う
     help: "エージェント間でポリシー(Actor)の重みを共有するか"
 
   hidden_size:

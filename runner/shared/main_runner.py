@@ -62,7 +62,6 @@ class UserEnvRunner(BaseRunner):
                 # 最終ステップの次状態は可視化フレーム外に出るため保存しない
                 if not step == self.all_args.episode_length - 1:
                     obs_list.append(obs[0])
-                    print("obs_list length:", len(obs_list))
                 reward_list.append(rewards[0])
                 action_list.append(actions[0])
 

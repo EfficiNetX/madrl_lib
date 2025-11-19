@@ -96,15 +96,16 @@ def get_config():
     defaults = {}
     type_map = {"int": int, "float": float, "str": str, "bool": bool}
     config_path = f"{config_dir}/{pre_args.algorithm_name}.yaml"
+
+    #設定ファイルの読み込み
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"{config_path} is not found.")
-
-    print(f"Loading configuration from {config_path}")
-    with open(config_path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-
-    if data is None:
-        raise ValueError(f"{config_path} is empty.")
+    else:
+        print(f"Loading configuration from {config_path}")
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        if data is None:
+            raise ValueError(f"{config_path} is empty.")
 
     if "arguments" not in data:
         raise KeyError(f"'arguments' key is not found in {config_path}.")

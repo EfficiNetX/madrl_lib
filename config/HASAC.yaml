@@ -1,0 +1,119 @@
+arguments:
+  # ===============================================
+  # --- 1. アルゴリズム挙動 (固定: 変更不可) ---
+  # ===============================================。
+
+  share_policy:
+    type: bool
+    default: false
+    readonly: true # 読み取り専用
+    help: "(HASAC-Fixed) 異質エージェントのためポリシーは共有しない"
+
+  # ===============================================
+  # --- 2. 調整可能なハイパーパラメータ ---
+  # ===============================================
+
+  share_observation:
+    type: bool
+    default: true
+    help: "Critic学習時に観測を共有するかどうか"
+    
+  use_centralized_V:
+    type: bool
+    default: true
+    help: "中央集権Criticを使用するかどうか"
+
+  # 行動の性質
+  action_type:
+    type: str
+    default: "continuous"
+    choices: ["continuous", "discrete"]
+    help: "行動空間のタイプ (連続 or 離散)"
+
+  deterministic:
+    type: bool
+    default: False
+    help: "決定論的ポリシーを使用するかどうか。Trueの場合は一番高い確率の行動を確実に選択する"
+
+  # --- ネットワーク & アーキテクチャ ---
+  hidden_size:
+    type: int
+    default: 256
+    help: "Actor/Criticネットワークの隠れ層次元"
+  layer_N:
+    type: int
+    default: 2
+    help: "Actor/Criticネットワークの層の数"
+  use_ReLU:
+    type: bool
+    default: true # Trueで有効 (store_false)
+    help: "活性化関数にReLUを使う (Falseでtanh)"
+
+  # --- オプティマイザ & 学習率 ---
+  lr:
+    type: float
+    default: 5e-5
+    help: "学習率 (Q-NetworkとMixer共通)"
+  opti_eps:
+    type: float
+    default: 1e-5
+    help: "RMSprop optimizer epsilon"
+  weight_decay:
+    type: float
+    default: 0
+    help: "重み減衰"
+
+  # --- 損失 & 報酬シグナル ---
+  gamma:
+    type: float
+    default: 0.99
+    help: "割引率"
+
+  # --- リプレイバッファ & バッチ ---
+  buffer_size:
+    type: int
+    default: 10000
+    help: "リプレイバッファの最大エピソード数"
+  batch_size:
+    type: int
+    default: 512
+    help: "学習時にサンプリングするエピソード数"
+  soft_update_tau:
+    type: float
+    default: 0.01
+    help: "ターゲットネットワーク更新のためのソフト更新率"
+
+  # ===============================================
+  # --- 3. 安定化テクニック & 損失 (調整可能) ---
+  # ===============================================
+    
+  use_orthogonal:
+    type: bool
+    default: true # Trueで有効 (store_false)
+    help: "重みの直交初期化を使う"
+    
+  use_feature_normalization:
+    type: bool
+    default: true # Trueで有効 (store_false)
+    help: "入力特徴量 (観測) の正規化 (LayerNorm) を使う"
+
+  use_max_grad_norm:
+    type: bool
+    default: true # Trueで有効 (store_false)
+    help: "勾配クリッピングを有効にする"
+    
+  max_grad_norm:
+    type: float
+    default: 10.0
+    help: "勾配クリッピングの最大値"
+
+  hasac_log_std_min:
+  type: float
+  default: -20.0
+  help: "連続行動のlog_stdの最小値"
+
+  hasac_log_std_max:
+    type: float
+    default: 2.0
+    help: "連続行動のlog_stdの最大値"
+

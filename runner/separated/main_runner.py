@@ -1,4 +1,3 @@
-import importlib
 import time
 from itertools import chain
 
@@ -16,12 +15,54 @@ def _t2n(x):
 class UserEnvRunner(BaseRunner):
     def __init__(self, config):
         super().__init__(config)
-        # visualizerのimport
-        user_name = config["args"].user_name
-        visualizeClass = importlib.import_module(
-            f"envs.{user_name}.{user_name}_visualize"
-        )
-        self.visualizer = getattr(visualizeClass, "visualizer")
+        """policy networkをエージェントの数だけ用意する"""
+        if self.all_args.algorithm_name == "HAPPO":
+            from algorithms.happo.happo_trainer import HAPPOTrainer as Trainer
+            from algorithms.happo.happpo_pollicy import HAPPO_Policy as Policy
+            from utils.separated_buffer import SeparatedReplayBuffer as Buffer
+        elif self.all_args.algorithm_name == "HATRPO":
+            pass
+        elif (
+            self.all_args.algorithm_name == "RMAPPO"
+            or self.all_args.algorithm_name == "IPPO"
+        ):
+            from algorithms.r_mappo.algorithm.RMAPPOPolicy import (
+                RMAPPOPolicy as Policy,
+            )
+            from algorithms.r_mappo.rmappo_trainer import RMAPPOTrainer as Trainer
+            from utils.separated_buffer import SeparatedReplayBuffer as Buffer
+        elif self.all_args.algorithm_name == "HASAC":
+            from algorithms.hasac.algorithm.hasac_policy import HASACPolicy as Policy
+            from algorithms.hasac.hasac_trainer import HASACTrainer as Trainer
+            from utils.offpolicy_separated_buffer import (
+                EpisodeReplayBuffer as Buffer,
+            )
+        self.policy = []
+        self.trainer = []
+        self.buffer = []
+        for agent_id in range(self.all_args.num_agents):
+            # policy network
+            po = Policy(
+                self.all_args,
+                self.envs.observation_space[agent_id],
+                self.share_observation_space,
+                self.envs.action_space[agent_id],
+            )
+            self.policy.append(po)
+            # algorithm
+            trainer = Trainer(
+                args=self.all_args,
+                policy=self.policy[agent_id],
+            )
+            self.trainer.append(trainer)
+            # buffer
+            buffer = Buffer(
+                args=self.all_args,
+                obs_space=self.envs.observation_space[agent_id],
+                share_obs_space=self.share_observation_space,
+                action_space=self.envs.action_space[agent_id],
+            )
+            self.buffer.append(buffer)
 
     def run(self):
         self.warmup()
@@ -225,3 +266,77 @@ class UserEnvRunner(BaseRunner):
                 rewards=rewards[:, agent_id],
                 masks=masks[:, agent_id],
             )
+
+    @torch.no_grad()
+    def compute(self):
+        for agent_id in range(self.all_args.num_agents):
+            self.trainer[agent_id].prep_rollout()
+            next_values = self.trainer[agent_id].policy.get_values(
+                shared_obs=self.buffer[agent_id].share_obs[-1],
+                rnn_states_critic=self.buffer[agent_id].rnn_states_critic[-1],
+                masks=self.buffer[agent_id].masks[-1],
+            )
+            next_values = _t2n(next_values)
+            self.buffer[agent_id].compute_returns(
+                next_values, self.trainer[agent_id].value_normalizer
+            )
+
+    def train(self):
+        train_infos = []
+        factor = np.ones(
+            (self.all_args.episode_length, self.all_args.num_rollout_threads, 1),
+            dtype=np.float32,
+        )
+        for agent_id in torch.randperm(self.all_args.num_agents):
+            self.trainer[agent_id].prep_training()
+            self.buffer[agent_id].update_factor(factor)
+            if self.all_args.algorithm_name == "HATRPO":
+                pass
+            else:
+                old_actions_log_prob, _ = self.trainer[
+                    agent_id
+                ].policy.actor.evaluate_actions(
+                    obs=self.buffer[agent_id]
+                    .obs[:-1]
+                    .reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
+                    rnn_states=self.buffer[agent_id]
+                    .rnn_states[0:1]
+                    .reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
+                    action=self.buffer[agent_id].actions.reshape(
+                        -1, *self.buffer[agent_id].actions.shape[2:]
+                    ),
+                    masks=self.buffer[agent_id]
+                    .masks[:-1]
+                    .reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
+                )
+            train_info = self.trainer[agent_id].train(self.buffer[agent_id])
+            if self.all_args.algorithm_name == "HATRPO":
+                pass
+            else:
+                new_actions_log_prob, _ = self.trainer[
+                    agent_id
+                ].policy.actor.evaluate_actions(
+                    obs=self.buffer[agent_id]
+                    .obs[:-1]
+                    .reshape(-1, *self.buffer[agent_id].obs.shape[2:]),
+                    rnn_states=self.buffer[agent_id]
+                    .rnn_states[0:1]
+                    .reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
+                    action=self.buffer[agent_id].actions.reshape(
+                        -1, *self.buffer[agent_id].actions.shape[2:]
+                    ),
+                    masks=self.buffer[agent_id]
+                    .masks[:-1]
+                    .reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
+                )
+            factor = factor * _t2n(
+                torch.prod(
+                    torch.exp(new_actions_log_prob - old_actions_log_prob), dim=-1
+                ).reshape(
+                    self.all_args.episode_length, self.all_args.num_rollout_threads, 1
+                )
+            )
+            train_infos.append(train_info)
+            self.buffer[agent_id].after_update()
+
+        return train_infos

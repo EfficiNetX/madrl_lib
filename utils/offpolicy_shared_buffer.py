@@ -2,6 +2,7 @@ import numpy as np
 
 
 class EpisodeReplayBuffer:
+    # エージェントがポリシーを共有する場合のエピソードリプレイバッファ
     def __init__(
         self,
         args,
@@ -198,4 +199,4 @@ class EpisodeReplayBuffer:
             mask=self.mask[indices],
             avail_actions=self.avail_actions[indices],
         )
-        return batch
+        return batch  #

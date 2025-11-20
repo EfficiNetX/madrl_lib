@@ -28,7 +28,7 @@ arguments:
   # --- ネットワーク & アーキテクチャ ---
   hidden_size:
     type: int
-    default: 64
+    default: 256
     help: "エージェント毎のRNN(Q)ネットワークの隠れ層次元"
 
   # --- オプティマイザ & 学習率 ---
@@ -84,5 +84,19 @@ arguments:
     help: "ε-greedy探索の最終値"
   epsilon_anneal_time:
     type: int
-    default: 800000 # 8e5
+    default: 360000000 
     help: "εを減衰させるステップ数"
+
+  # --- QMIX ミキサー & ハイパーネットワーク ---
+  mixer_embed_dim:
+    type: int
+    default: 32
+    help: "Mixerネットワークの埋め込み次元"
+  hypernet_layers:
+    type: int
+    default: 2
+    help: "ハイパーネットワークの層数 (1 or 2)"
+  hypernet_embed_dim:
+    type: int
+    default: 32
+    help: "ハイパーネットワークの埋め込み次元"

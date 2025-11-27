@@ -124,7 +124,7 @@ class HASACPolicy:
         elif not deterministic:
             # gumbel-softmaxでサンプリング hard = Trueでone-hot化
             action_env = torch.nn.functional.gumbel_softmax(
-                logits, tau=self.args.gumbel_softmax_tau, hard=True, dim=-1
+                logits, tau=self.args.gumbel_softmax_tau, hard=False, dim=-1
             )
             action = torch.argmax(action_env, dim=-1, keepdim=True)
             log_prob = (

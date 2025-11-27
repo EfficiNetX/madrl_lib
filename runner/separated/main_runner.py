@@ -31,12 +31,6 @@ class UserEnvRunner(BaseRunner):
             )
             from algorithms.r_mappo.rmappo_trainer import RMAPPOTrainer as Trainer
             from utils.separated_buffer import SeparatedReplayBuffer as Buffer
-        elif self.all_args.algorithm_name == "HASAC":
-            from algorithms.hasac.algorithm.hasac_policy import HASACPolicy as Policy
-            from algorithms.hasac.hasac_trainer import HASACTrainer as Trainer
-            from utils.offpolicy_separated_buffer import (
-                EpisodeReplayBuffer as Buffer,
-            )
         self.policy = []
         self.trainer = []
         self.buffer = []
@@ -113,7 +107,7 @@ class UserEnvRunner(BaseRunner):
 
             # compute return and update network
             self.compute()
-            _ = self.train()
+            train_infos = self.train()
             # post process
             total_num_steps = (
                 (episode + 1)

@@ -2,7 +2,6 @@ import numpy as np
 
 
 class EpisodeReplayBuffer:
-    # エージェントがポリシーを共有する場合のエピソードリプレイバッファ
     def __init__(
         self,
         args,
@@ -10,6 +9,7 @@ class EpisodeReplayBuffer:
         obs_space,
         share_obs_space,
         action_space,
+        action_shape=1,  # いくつ行動をとるか
     ):
         self.buffer_size = args.buffer_size
         self.episode_length = args.episode_length
@@ -23,6 +23,8 @@ class EpisodeReplayBuffer:
         self.buffer_size = args.buffer_size
         self.share_obs_dim = len(share_obs_space)
         self.obs_dim = len(obs_space)
+        self.action_dim = len(action_space)
+        self.action_shape = action_shape
 
         # バッファ本体
         self.share_obs = np.zeros(
@@ -47,7 +49,7 @@ class EpisodeReplayBuffer:
                 self.buffer_size,
                 self.episode_length,
                 self.num_agents,
-                1,
+                self.action_shape,
             ),
             dtype=np.int64,
         )
@@ -74,13 +76,13 @@ class EpisodeReplayBuffer:
                 self.episode_length,
             ),
             dtype=bool,
-        )
+        )  # 環境が終了していないステップはFalse、終了しているステップはTrueを保存
         self.avail_actions = np.zeros(
             (
                 self.buffer_size,
                 self.episode_length + 1,
                 self.num_agents,
-                len(action_space),
+                self.action_dim,
             ),
             dtype=bool,
         )

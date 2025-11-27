@@ -18,6 +18,7 @@ class BaseRunner(object):
 
         obs_space = self.envs.observation_space[0]  # エージェント0の観測
         action_space = self.envs.action_space[0]
+        print(obs_space, action_space)
 
         # interval
         self.all_args.log_interval = self.all_args.log_interval
@@ -85,7 +86,7 @@ class BaseRunner(object):
             from algorithms.valuedecomposition.QTrainer import (
                 QTrainer as Trainer,
             )
-            from utils.offpolicy_shared_buffer import (
+            from utils.offpolicy_buffer import (
                 EpisodeReplayBuffer as ReplayBuffer,
             )
 

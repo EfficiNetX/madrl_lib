@@ -1,4 +1,5 @@
 import torch.nn as nn
+
 from .util import init
 
 
@@ -54,14 +55,28 @@ class MLPLayer(nn.Module):
 
 
 class MLPBase(nn.Module):
-    def __init__(self, args, obs_dim, cat_self=True, attn_internal=False):
+    def __init__(
+        self,
+        args,
+        obs_dim,
+        cat_self=True,
+        attn_internal=False,
+        hidden_size: int = -1,
+        layer: int = -1,
+    ):
         super(MLPBase, self).__init__()
 
         self._use_feature_normalization = args.use_feature_normalization
         self._use_orthogonal = args.use_orthogonal
         self._use_ReLU = args.use_ReLU
-        self._layer_N = args.layer_N
-        self.hidden_size = args.hidden_size
+        if layer == -1:
+            self._layer_N = args.layer_N
+        else:
+            self._layer_N = layer
+        if hidden_size == -1:
+            self.hidden_size = args.hidden_size
+        else:
+            self.hidden_size = hidden_size
 
         if self._use_feature_normalization:
             self.feature_norm = nn.LayerNorm(obs_dim)

@@ -1,7 +1,6 @@
 import torch
 
-from algorithms.utils.mlp import MLPBase
-from algorithms.utils.util import init
+from algorithms.hasac.algorithm.hasac_actor import Actor
 
 
 class HASACPolicy:
@@ -15,103 +14,150 @@ class HASACPolicy:
         # 引数の保存
         self.args = args
         self.batch_size = args.batch_size
-        self.lr = args.lr
+        self.lr = args.actor_lr
         self.obs_space = obs_space
         self.share_obs_space = share_obs_space
         self.action_space = action_space
-        self.hidden_size = args.hidden_size
-        self.hidden_layer_N = args.hidden_layer_N
+        self.hidden_size = args.actor_hidden_size
+        self.hidden_layer_N = args.actor_layer_N
         self.obs_dim = len(obs_space)
         self.share_obs_dim = len(share_obs_space)
         self.action_dim = len(action_space)
+        self.action_shape = (
+            1 if self.args.action_type == "discrete" else len(self.action_space)
+        )
         # Actorクラスの生成
         self.actor = Actor(
             args=args,
             obs_dim=self.obs_dim,
+            action_dim=self.action_dim,
         )
         # Optimizerの生成
         self.actor_optimizer = torch.optim.Adam(
-            self.actor.parameters(), lr=self.lr, eps=args.opti_eps
+            self.actor.parameters(),
+            lr=self.args.actor_lr,
+            eps=args.opti_eps,
+            weight_decay=args.weight_decay,
         )
         # デバイスの設定
         self.device = args.device
         self.actor.to(self.device)
 
     @torch.no_grad()
-    def get_action(
-        self, obs: torch.Tensor, deterministic: bool = False
-    ) -> torch.Tensor:
+    def get_action(self, obs: torch.Tensor, deterministic: bool) -> torch.Tensor:
         """
-        行動をサンプリングまたは決定的に選択する。
+        行動を取得する。'(rollout時)'
         """
+        action, action_env, _, _ = self._get_action_and_probs(
+            obs, deterministic, type="rollout"
+        )
+        """
+        assert action.shape == (
+            self.args.num_rollout_threads,
+            self.action_shape,
+        )
+        assert action_env.shape == (
+            self.args.num_rollout_threads,
+            self.action_dim,
+        )
+        """
+        return action, action_env
+
+    def get_action_with_probability(
+        self, obs: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        行動確率を取得する。
+        """
+        _, action_env, log_prob, probs = self._get_action_and_probs(
+            obs, deterministic=False, type="train"
+        )
+        """
+        assert action_env.shape == (
+            self.args.batch_size,
+            self.args.episode_length,
+            self.action_dim,
+        )
+        assert log_prob.shape == (
+            self.args.batch_size,
+            self.args.episode_length,
+        )
+        assert probs.shape == (
+            self.args.batch_size,
+            self.args.episode_length,
+            self.action_dim,
+        )
+        """
+        return action_env, log_prob, probs
+
+    def _get_action_and_probs(
+        self, obs: torch.Tensor, deterministic=False, type="rollout"
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        if type != "rollout" and type != "train":
+            raise ValueError(f"type should be 'rollout' or 'train', but got {type}")
         if self.args.action_type == "discrete":
-            logits = self.actor(obs)
-            if deterministic:
-                actions = torch.argmax(logits, dim=-1)
-            else:
-                dist = torch.distributions.Categorical(logits=logits)
-                actions = dist.sample()
+            return self._get_action_and_probs_discrete(obs, deterministic, type)
         elif self.args.action_type == "continuous":
-            if deterministic:
-                mean, _ = self.actor(obs)
-                actions = mean
-            else:
-                mean, log_std = self.actor(obs)
-                std = log_std.exp()
-                dist = torch.distributions.Normal(mean, std)
-                actions = dist.rsample()
-                actions = torch.tanh(actions)  # 行動を[-1, 1]に制限
+            return self._get_action_and_probs_continuous(obs, deterministic, type)
         else:
-            raise ValueError("action_type must be 'continuous' or 'discrete'.")
-        return actions
+            raise (ValueError("action_type should be discrete or continuous."))
 
-
-class Actor(MLPBase):
-    def __init__(self, args, obs_dim, action_dim):
-        super(Actor, self).__init__(args, obs_dim)
-        self.args = args
-        self.action_dim = action_dim
-
-        # 初期化関数の設定
-        if args.use_orthogonal:
-            init_method = torch.nn.init.orthogonal_
-        else:
-            init_method = torch.nn.init.xavier_uniform_
-
-        def init_(m):
-            return init(m, init_method, lambda x: torch.nn.init.constant_(x, 0))
-
-        if self.args.action_type == "continuous":
-            # 初期化を適用
-            self.mean_linear = init_(torch.nn.Linear(self.hidden_size, self.action_dim))
-            self.log_std_linear = init_(
-                torch.nn.Linear(self.hidden_size, self.action_dim)
+    def _get_action_and_probs_discrete(
+        self, obs: torch.Tensor, deterministic: bool, type: str
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        logits = self.actor(obs)
+        probs = torch.nn.functional.softmax(logits, dim=-1)
+        if deterministic and type == "rollout":  # 決定的
+            action = torch.argmax(probs, dim=-1, keepdim=True)
+            action_env = torch.nn.functional.one_hot(
+                action.squeeze(-1), num_classes=self.action_dim
+            ).float()
+            log_prob = None  # type = "rollout"のときは不要
+        elif not deterministic and type == "rollout":
+            action = torch.nn.functional.gumbel_softmax(
+                logits, tau=1.0, hard=True, dim=-1
+            ).argmax(dim=-1, keepdim=True)
+            action_env = torch.nn.functional.one_hot(
+                action.squeeze(-1), num_classes=self.action_dim
+            ).float()
+            log_prob = None  # type = "rollout"のときは不要
+        elif not deterministic:
+            # gumbel-softmaxでサンプリング hard = Trueでone-hot化
+            action_env = torch.nn.functional.gumbel_softmax(
+                logits, tau=self.args.gumbel_softmax_tau, hard=True, dim=-1
             )
-        elif self.args.action_type == "discrete":
-            # 離散行動空間の場合の出力層
-            self.action_out = init_(torch.nn.Linear(self.hidden_size, self.action_dim))
+            action = torch.argmax(action_env, dim=-1, keepdim=True)
+            log_prob = (
+                (
+                    torch.log(probs + 1e-10).clamp(
+                        min=self.args.min_log_prob, max=self.args.max_log_prob
+                    )
+                )
+                * action_env
+            ).sum(dim=-1, keepdim=False)
         else:
-            raise ValueError("action_type must be 'continuous' or 'discrete'.")
-
-        self.to(args.device)
-
-    def forward(self, obs: torch.Tensor) -> torch.Tensor:
-        """
-        隠れ層による特徴抽出の後に、行動分布のパラメータを出力する。
-        """
-        features = super(Actor, self).forward(obs)
-        if self.args.action_type == "discrete":
-            # 離散行動空間の場合
-            logits = self.action_out(features)  # (..., action_dim)
-            return logits
-        elif self.args.action_type == "continuous":
-            mean = self.mean_linear(features)
-            log_std = self.log_std_linear(features)
-            log_std = torch.clamp(
-                log_std,
-                min=self.args.hasac_log_std_min,
-                max=self.args.hasac_log_std_max,
+            raise ValueError(
+                "deterministic=True is only supported during rollout collection."
             )
-            return mean, log_std
+        return action, action_env, log_prob, probs
+
+    def _get_action_and_probs_continuous(
+        self, obs: torch.Tensor, deterministic: bool = False, type: str = "rollout"
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        mean, log_std = self.actor(obs)
+        std = log_std.exp()
+        normal = torch.distributions.Normal(mean, std)
+        if deterministic and type == "rollout":
+            z = mean
+        elif not deterministic:
+            z = normal.rsample()
         else:
-            raise ValueError("action_type must be 'continuous' or 'discrete'.")
+            raise ValueError(
+                "deterministic=True is only supported during rollout collection."
+            )
+        action = torch.tanh(z)
+        action_env = action
+        log_prob = (normal.log_prob(z) - torch.log(1 - action.pow(2) + 1e-6)).sum(
+            dim=-1, keepdim=False
+        )
+        return action, action_env, log_prob, normal

@@ -46,6 +46,15 @@ class CentralizedSACTrainer(BaseSACTrainer):
         self.critic2.to(self.args.device)
         self.target_critic_2.to(self.args.device)
 
+        # ValueNorm for target Q
+        self.use_valuenorm = getattr(self.args, "use_valuenorm", False)
+        if self.use_valuenorm:
+            from utils.valuenorm import ValueNorm
+
+            self.target_q_valuenorm = ValueNorm(
+                input_shape=1, norm_axes=0, device=self.args.device
+            )
+
     def _train_critic(self, batch):
         if self.train_step_counter % 10 == 0:
             self.log_initial_q_landscape(batch)
@@ -229,13 +238,7 @@ class CentralizedSACTrainer(BaseSACTrainer):
             dim=-1,
         )
         Q_1 = self.target_critic_1.forward(input_critic).squeeze(-1)
-        print(
-            f"[Q1] min: {Q_1.min().item():.4f}, max: {Q_1.max().item():.4f}, var: {Q_1.var().item():.4f}"
-        )
         Q_2 = self.target_critic_2.forward(input_critic).squeeze(-1)
-        print(
-            f"[Q2] min: {Q_2.min().item():.4f}, max: {Q_2.max().item():.4f}, var: {Q_2.var().item():.4f}"
-        )
         min_Q = torch.min(Q_1, Q_2)
         rewards = batch["rewards"].sum(dim=2).squeeze(-1)
         ####
@@ -255,6 +258,30 @@ class CentralizedSACTrainer(BaseSACTrainer):
 
         target_Q = rewards + self.args.gamma * done_mask * next_state_value
 
+        if self.use_valuenorm:
+            print(target_Q.shape)
+            assert target_Q.shape == (self.args.batch_size, self.args.episode_length)
+            # 変更前のtarget_Qの最初の数行
+            print(
+                "[ValueNorm] target_Q (before norm) head:",
+                target_Q[:3, :3].cpu().numpy(),
+            )
+            # ValueNormの移動平均・分散
+            mean, var = self.target_q_valuenorm.running_mean_var()
+            print(
+                "[ValueNorm] running_mean:",
+                mean.cpu().numpy(),
+                "running_var:",
+                var.cpu().numpy(),
+            )
+            self.target_q_valuenorm.update(target_Q)
+            target_Q_normed = self.target_q_valuenorm.normalize(target_Q)
+            # 変更後のtarget_Qの最初の数行
+            print(
+                "[ValueNorm] target_Q (after norm) head:",
+                target_Q_normed[:3, :3].cpu().numpy(),
+            )
+            target_Q = target_Q_normed
         return target_Q.detach()
 
     def log_initial_q_landscape(self, batch):

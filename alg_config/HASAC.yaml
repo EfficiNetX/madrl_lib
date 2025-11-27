@@ -43,7 +43,7 @@ arguments:
   # --- ネットワーク & アーキテクチャ ---
   actor_hidden_size:
     type: int
-    default: 256
+    default: 64
     help: "Actorネットワークの隠れ層次元"
   actor_layer_N:
     type: int
@@ -63,14 +63,14 @@ arguments:
     help: "活性化関数にReLUを使う (Falseでtanh)"
 
   # --- オプティマイザ & 学習率 ---
-  critic_lr:
-    type: float
-    default: 5e-4
-    help: "Criticの学習率"
   actor_lr:
     type: float
-    default: 3e-4
+    default: 5e-5
     help: "Actorの学習率"
+  critic_lr:
+    type: float
+    default: 1e-5
+    help: "Criticの学習率"
   alpha_lr:
     type: float
     default: 1e-3
@@ -107,7 +107,7 @@ arguments:
   
   initial_alpha:
     type: float
-    default: 0.1
+    default: 1e-4
     help: "自動調整時のalphaの初期値"
   
   target_entropy_ratio:
@@ -139,11 +139,15 @@ arguments:
     type: bool
     default: true # Trueで有効 (store_false)
     help: "重みの直交初期化を使う"
-    
+
+  use_valuenorm:
+      type: bool
+      default: true
+      help: "target Q値のValueNorm正規化を有効にするかどうか"
     
   use_feature_normalization:
     type: bool
-    default: false # Trueで有効 (store_false)
+    default: true # Trueで有効 (store_false)
     help: "入力特徴量 (観測) の正規化 (LayerNorm) を使う"
   
   use_max_grad_norm:
@@ -188,5 +192,5 @@ arguments:
 
   warmup_episodes:
     type: int
-    default: 1000
+    default: 0
     help: "学習開始前にReplay Bufferへ十分なデータを貯めるためのエピソード数"

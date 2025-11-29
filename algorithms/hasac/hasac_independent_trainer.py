@@ -1,6 +1,7 @@
 import copy
 import random
 
+import numpy as np
 import torch
 
 from algorithms.hasac.algorithm.hasac_critic import Critic
@@ -8,7 +9,6 @@ from algorithms.hasac.hasac_base_trainer import BaseSACTrainer
 from utils.valuenorm import ValueNorm
 
 
-# 分散型（Independent SAC）
 class IndependentSACTrainer(BaseSACTrainer):
     def __init__(self, args, policy):
         super().__init__(args, policy)
@@ -65,6 +65,9 @@ class IndependentSACTrainer(BaseSACTrainer):
             self.target_critic_2[i].to(self.args.device)
 
     def _train_critic(self, batch):
+        if getattr(self, "train_step_counter", 0) % 10 == 0:
+            self.log_initial_q_landscape(batch)
+
         critic_losses = []
         valid_mask = (1 - batch["mask"].float()).squeeze(-1)
         mask_sum = valid_mask.sum()
@@ -229,4 +232,26 @@ class IndependentSACTrainer(BaseSACTrainer):
             ):
                 target_param.data.copy_(
                     self.args.tau * param.data + (1 - self.args.tau) * target_param.data
+                )
+
+    def log_initial_q_landscape(self, batch):
+        """
+        各エージェントの初期状態での各行動(one-hot)ごとのQ値をlog出力
+        """
+        with torch.no_grad():
+            for agent_id in range(self.args.num_agents):
+                initial_obs_agent = batch["obs"][:, 0, agent_id, :]
+                act_dim = self.policy[agent_id].action_dim
+                batch_size = initial_obs_agent.shape[0]
+                q_per_action = []
+                for act_i in range(act_dim):
+                    one_hot_act = torch.zeros(
+                        batch_size, act_dim, device=self.args.device
+                    )
+                    one_hot_act[:, act_i] = 1
+                    critic_input = torch.cat([initial_obs_agent, one_hot_act], dim=-1)
+                    q_val = self.critic1[agent_id].forward(critic_input)
+                    q_per_action.append(q_val.mean().item())
+                print(
+                    f"[DEBUG] Agent {agent_id} Q-values per action (init): {np.round(q_per_action, 4)}"
                 )

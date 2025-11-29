@@ -108,7 +108,9 @@ class OffPolicyMainRunner(BaseRunner):
                     self.all_args.num_rollout_threads,
                     self.all_args.episode_length + 1,
                     -1,
-                ),
+                )
+                if self.all_args.share_observation
+                else self.obs_trajectory_buffer[:, :, 0, :],
                 obs=self.obs_trajectory_buffer,
                 actions=self.actions_trajectory_buffer,
                 rewards=self.rewards_trajectory_buffer,

@@ -5,12 +5,24 @@ import torch
 
 from algorithms.hasac.algorithm.hasac_critic import Critic
 from algorithms.hasac.hasac_base_trainer import BaseSACTrainer
+from utils.valuenorm import ValueNorm
 
 
 # 分散型（Independent SAC）
 class IndependentSACTrainer(BaseSACTrainer):
     def __init__(self, args, policy):
         super().__init__(args, policy)
+        # ValueNorm for each agent (optional, like centralized)
+        self.use_valuenorm = self.args.use_valuenorm
+        if self.use_valuenorm:
+            self.target_q_valuenorm = [
+                ValueNorm(
+                    input_shape=self.args.episode_length,
+                    norm_axes=0,
+                    device=self.args.device,
+                )
+                for _ in range(self.args.num_agents)
+            ]
         # 各エージェントごとに2つのCriticを持つ
         self.critic1 = []
         self.critic2 = []
@@ -23,7 +35,7 @@ class IndependentSACTrainer(BaseSACTrainer):
             )
             critic1.optimizer = torch.optim.Adam(
                 critic1.parameters(),
-                lr=self.args.lr,
+                lr=self.args.critic_lr,
                 eps=self.args.opti_eps,
                 weight_decay=self.args.weight_decay,
             )
@@ -37,7 +49,7 @@ class IndependentSACTrainer(BaseSACTrainer):
             )
             critic2.optimizer = torch.optim.Adam(
                 critic2.parameters(),
-                lr=self.args.lr,
+                lr=self.args.critic_lr,
                 eps=self.args.opti_eps,
                 weight_decay=self.args.weight_decay,
             )
@@ -78,29 +90,36 @@ class IndependentSACTrainer(BaseSACTrainer):
                 dim=-1,
             )
 
+            # ValueNorm: normalize target_Q for loss
+            if self.use_valuenorm:
+                self.target_q_valuenorm[agent_id].update(target_Q)
+                target_Q_norm = self.target_q_valuenorm[agent_id].normalize(target_Q)
+            else:
+                target_Q_norm = target_Q
+
             # Critic 1の更新
             q1_value = self.critic1[agent_id].forward(critic_input).squeeze(-1)
-            loss1 = target_Q - q1_value
+            loss1 = target_Q_norm - q1_value
             critic_loss1 = (loss1**2 * valid_mask).sum() / mask_sum
 
             self.critic1[agent_id].optimizer.zero_grad()
             critic_loss1.backward()
             if self.args.use_max_grad_norm:
                 torch.nn.utils.clip_grad_norm_(
-                    self.critic1[agent_id].parameters(), self.args.max_grad_norm
+                    self.critic1[agent_id].parameters(), self.args.critic_max_grad_norm
                 )
             self.critic1[agent_id].optimizer.step()
 
             # Critic 2の更新
             q2_value = self.critic2[agent_id].forward(critic_input).squeeze(-1)
-            loss2 = target_Q - q2_value
+            loss2 = target_Q_norm - q2_value
             critic_loss2 = (loss2**2 * valid_mask).sum() / mask_sum
 
             self.critic2[agent_id].optimizer.zero_grad()
             critic_loss2.backward()
             if self.args.use_max_grad_norm:
                 torch.nn.utils.clip_grad_norm_(
-                    self.critic2[agent_id].parameters(), self.args.max_grad_norm
+                    self.critic2[agent_id].parameters(), self.args.critic_max_grad_norm
                 )
             self.critic2[agent_id].optimizer.step()
 
@@ -110,50 +129,55 @@ class IndependentSACTrainer(BaseSACTrainer):
             self.critic_losses.append(sum(critic_losses) / len(critic_losses))
 
     def _train_actor(self, batch):
-        agent_indices = list(range(self.args.num_agents))
-        random.shuffle(agent_indices)
-        actor_losses = []
-        alpha_losses = []
+        for _ in range(self.args.mini_epoch_N):
+            agent_indices = list(range(self.args.num_agents))
+            random.shuffle(agent_indices)
+            actor_losses = []
+            alpha_losses = []
 
-        valid_mask = (1 - batch["mask"].float()).squeeze(-1)
-        mask_sum = valid_mask.sum()
-        if mask_sum == 0:
-            return
+            valid_mask = (1 - batch["mask"].float()).squeeze(-1)
+            mask_sum = valid_mask.sum()
+            if mask_sum == 0:
+                continue
 
-        for agent_id in agent_indices:
-            agent_obs = batch["obs"][:, :-1, agent_id, :]
-            action_env, log_prob, probs = self.policy[
-                agent_id
-            ].get_action_with_probability(agent_obs)
+            for agent_id in agent_indices:
+                agent_obs = batch["obs"][:, :-1, agent_id, :]
+                action_env, log_prob, probs = self.policy[
+                    agent_id
+                ].get_action_with_probability(agent_obs)
 
-            input_critic = torch.cat([agent_obs, action_env], dim=-1)
+                input_critic = torch.cat([agent_obs, action_env], dim=-1)
 
-            Q1 = self.critic1[agent_id].forward(input_critic).detach().squeeze(-1)
-            Q2 = self.critic2[agent_id].forward(input_critic).detach().squeeze(-1)
-            Q = torch.min(Q1, Q2)
+                Q1 = self.critic1[agent_id].forward(input_critic).squeeze(-1)
+                Q2 = self.critic2[agent_id].forward(input_critic).squeeze(-1)
+                Q = torch.min(Q1, Q2)
+                if self.use_valuenorm:
+                    Q = self.target_q_valuenorm[agent_id].denormalize(Q, dtype="torch")
 
-            actor_loss_unmasked = self._get_alpha().detach() * log_prob - Q
-            actor_loss = (actor_loss_unmasked * valid_mask).sum() / mask_sum
+                actor_loss = (
+                    self._get_alpha().detach() * log_prob * valid_mask - Q * valid_mask
+                ).sum() / valid_mask.sum()
 
-            self.policy[agent_id].actor_optimizer.zero_grad()
-            actor_loss.backward()
-            if self.args.use_max_grad_norm:
-                torch.nn.utils.clip_grad_norm_(
-                    self.policy[agent_id].actor.parameters(), self.args.max_grad_norm
-                )
-            self.policy[agent_id].actor_optimizer.step()
+                self.policy[agent_id].actor_optimizer.zero_grad()
+                actor_loss.backward()
+                if self.args.use_max_grad_norm:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.policy[agent_id].actor.parameters(),
+                        self.args.actor_max_grad_norm,
+                    )
+                self.policy[agent_id].actor_optimizer.step()
 
-            valid_probs = probs[valid_mask.bool()]
-            _, alpha_loss_value = self._update_alpha(valid_probs.detach())
+                valid_probs = probs[valid_mask.bool()]
+                _, alpha_loss_value = self._update_alpha(valid_probs.detach())
 
-            actor_losses.append(actor_loss.item())
-            if alpha_loss_value is not None:
-                alpha_losses.append(alpha_loss_value)
+                actor_losses.append(actor_loss.item())
+                if alpha_loss_value is not None:
+                    alpha_losses.append(alpha_loss_value)
 
-        if actor_losses:
-            self.actor_losses.append(sum(actor_losses) / len(actor_losses))
-        if alpha_losses:
-            self.alpha_losses.append(sum(alpha_losses) / len(alpha_losses))
+            if actor_losses:
+                self.actor_losses.append(sum(actor_losses) / len(actor_losses))
+            if alpha_losses:
+                self.alpha_losses.append(sum(alpha_losses) / len(alpha_losses))
 
     @torch.no_grad()
     def _calculate_target_q_values(self, batch, agent_id) -> torch.Tensor:
@@ -175,7 +199,14 @@ class IndependentSACTrainer(BaseSACTrainer):
 
         rewards = batch["rewards"][:, :, agent_id, 0]
 
-        next_state_value = min_Q - self._get_alpha() * log_prob_next
+        if self.use_valuenorm:
+            min_Q_denorm = self.target_q_valuenorm[agent_id].denormalize(
+                min_Q, dtype="torch"
+            )
+            next_state_value = min_Q_denorm - (self._get_alpha() * log_prob_next)
+        else:
+            next_state_value = min_Q - (self._get_alpha() * log_prob_next)
+
         done_mask = (1 - batch["mask"].float()).squeeze(-1)
         target_Q = rewards + self.args.gamma * done_mask * next_state_value
 

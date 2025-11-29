@@ -1,5 +1,3 @@
-from datetime import datetime
-
 import numpy as np
 import torch
 
@@ -85,36 +83,59 @@ class BaseSACTrainer:
             self._log_stats()
 
     def _log_stats(self):
-        avg_critic_loss = np.mean(self.critic_losses)
-        avg_actor_loss = np.mean(self.actor_losses)
-        avg_alpha_loss = np.mean(self.alpha_losses)
-        avg_reward = np.mean(self.rewards)
-        avg_alpha = np.mean(self.alphas)
-        avg_entropy = np.mean(self.entropies)
-        avg_initial_q = (
-            np.mean(self.initial_q_values) if self.initial_q_values else "N/A"
-        )
+        avg_critic_loss = self.critic_losses[-1] if self.critic_losses else 0.0
+        avg_actor_loss = self.actor_losses[-1] if self.actor_losses else 0.0
+        avg_alpha_loss = self.alpha_losses[-1] if self.alpha_losses else 0.0
+        avg_reward = self.rewards[-1] if self.rewards else 0.0
+        avg_alpha = self.alphas[-1] if self.alphas else 0.0
+        avg_entropy = self.entropies[-1] if self.entropies else 0.0
+        avg_initial_q = self.initial_q_values[-1] if self.initial_q_values else None
 
-        log_str = (
-            f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]"
-            f" Step: {self.train_step_counter}\n"
-            f"\tAvg Critic Loss: {avg_critic_loss:.6f}\n"
-            f"\tAvg Actor Loss: {avg_actor_loss:.6f}\n"
-            f"\tAvg Alpha Loss: {avg_alpha_loss:.6f}\n"
-            f"\tAvg Alpha: {avg_alpha:.6f}\n"
-            f"\tAvg Entropy: {avg_entropy:.6f}\n"
-        )
-        if avg_initial_q != "N/A":
-            log_str += f"\tAvg Initial Q: {avg_initial_q:.6f}\n"
+        # CSVヘッダー
+        header = [
+            "Step",
+            "Avg Critic Loss",
+            "Avg Actor Loss",
+            "Avg Alpha Loss",
+            "Avg Alpha",
+            "Avg Entropy",
+            "Avg Reward",
+        ]
+        if avg_initial_q is not None:
+            header.append("Avg Initial Q")
 
-        log_str += (
-            f"\tAvg Reward: {avg_reward:.6f}\n"
-            f"--------------------------------------------------\n"
-        )
+        # CSVデータ
+        row = [
+            self.train_step_counter,
+            f"{avg_critic_loss:.6f}",
+            f"{avg_actor_loss:.6f}",
+            f"{avg_alpha_loss:.6f}",
+            f"{avg_alpha:.6f}",
+            f"{avg_entropy:.6f}",
+            f"{avg_reward:.6f}",
+        ]
+        if avg_initial_q is not None:
+            row.append(f"{avg_initial_q:.6f}")
 
-        print(log_str)
-        with open("log.txt", "a") as f:
-            f.write(log_str)
+        # ファイルが空ならヘッダーを書き込む
+        write_header = False
+        try:
+            with open(self.log_file, "r") as f:
+                if f.read().strip() == "":
+                    write_header = True
+        except FileNotFoundError:
+            write_header = True
+
+        csv_line = ",".join(map(str, row)) + "\n"
+        if write_header:
+            csv_header = ",".join(header) + "\n"
+            with open(self.log_file, "a") as f:
+                f.write(csv_header)
+                f.write(csv_line)
+        else:
+            with open(self.log_file, "a") as f:
+                f.write(csv_line)
+        print(csv_line, end="")
 
     def _clear_losses(self):
         self.critic_losses.clear()
@@ -164,6 +185,11 @@ class BaseSACTrainer:
                     [self.log_alpha], self.args.alpha_max_grad_norm
                 )
             self.alpha_optimizer.step()
+            # alphaの最小値をクリップ
+            if self.args.min_alpha is not None:
+                self.log_alpha.data.clamp_(
+                    min=np.log(self.args.min_alpha), max=np.log(self.args.max_alpha)
+                )
             return self.log_alpha.exp().item(), alpha_loss.item()
         else:
             return self.args.alpha, 0.0

@@ -138,9 +138,10 @@ class OffPolicyMainRunner(BaseRunner):
                         device=self.all_args.device,
                         dtype=torch.float32,
                     ).unsqueeze(0)
-                    _, _, action_probs = self.policy[
-                        agent_id
-                    ].get_action_with_probability(obs_t)
+                    with torch.no_grad():
+                        _, _, action_probs = self.policy[
+                            agent_id
+                        ].get_action_with_probability(obs_t)
                     print(
                         "Agent {} Action Probabilities: {}".format(
                             agent_id,
@@ -152,6 +153,8 @@ class OffPolicyMainRunner(BaseRunner):
                 self.buffer.can_sample(self.all_args.batch_size)
                 and episode > self.all_args.warmup_episodes
             ):
+                if episode % self.all_args.train_interval != 0:
+                    continue
                 episode_samples = self.buffer.sample(self.all_args.batch_size)
                 self.trainer.train(episode_samples)
 

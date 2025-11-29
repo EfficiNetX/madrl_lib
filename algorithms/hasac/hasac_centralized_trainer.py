@@ -6,6 +6,7 @@ import torch
 
 from algorithms.hasac.algorithm.hasac_critic import Critic
 from algorithms.hasac.hasac_base_trainer import BaseSACTrainer
+from utils.valuenorm import ValueNorm
 
 
 class CentralizedSACTrainer(BaseSACTrainer):
@@ -49,11 +50,11 @@ class CentralizedSACTrainer(BaseSACTrainer):
         # ValueNorm for target Q
         self.use_valuenorm = getattr(self.args, "use_valuenorm", False)
         if self.use_valuenorm:
-            from utils.valuenorm import ValueNorm
-
-            # normalize over (batch, time) -> scalar normalizer for whole (B,T)
+            # normalize over batch for each timestep (input_shape=T, norm_axes=0)
             self.target_q_valuenorm = ValueNorm(
-                input_shape=1, norm_axes=2, device=self.args.device
+                input_shape=self.args.episode_length,
+                norm_axes=0,
+                device=self.args.device,
             )
 
     def _train_critic(self, batch):
@@ -132,9 +133,7 @@ class CentralizedSACTrainer(BaseSACTrainer):
                             action_env,
                             agent_log_prob,
                             agent_probs,
-                        ) = self.policy[
-                            i
-                        ].get_action_with_probability(agent_obs)
+                        ) = self.policy[i].get_action_with_probability(agent_obs)
                     else:
                         # 更新対象外のActorは勾配計算をしない
                         with torch.no_grad():
@@ -142,9 +141,7 @@ class CentralizedSACTrainer(BaseSACTrainer):
                                 action_env,
                                 _,
                                 _,
-                            ) = self.policy[
-                                i
-                            ].get_action_with_probability(agent_obs)
+                            ) = self.policy[i].get_action_with_probability(agent_obs)
                     actions.append(action_env)
 
                 actions_env = torch.cat(actions, dim=-1)
@@ -158,9 +155,12 @@ class CentralizedSACTrainer(BaseSACTrainer):
                     dim=-1,
                 )
                 # 2つのCriticの出力の最小値を使用
-                Q1 = self.critic1.forward(input_critic).detach().squeeze(-1)
-                Q2 = self.critic2.forward(input_critic).detach().squeeze(-1)
+                Q1 = self.critic1.forward(input_critic).squeeze(-1)
+                Q2 = self.critic2.forward(input_critic).squeeze(-1)
                 Q = torch.min(Q1, Q2)
+                if self.use_valuenorm:
+                    # ValueNormを使用している場合、正規化を元に戻す
+                    Q = self.target_q_valuenorm.denormalize(Q, dtype="torch")
                 # Actor Loss: (alpha * log_pi - Q) の平均を最小化
 
                 actor_loss = (
@@ -245,10 +245,8 @@ class CentralizedSACTrainer(BaseSACTrainer):
         episode_rewards = batch["rewards"].sum(dim=(1, 2, 3))
         self.rewards.append(episode_rewards.mean().item())
         if self.use_valuenorm:
-            # Use running mean/var to denormalize in-torch (avoid numpy round-trip)
-            mean, var = self.target_q_valuenorm.running_mean_var()
-            sigma = torch.sqrt(var).to(min_Q.device).to(min_Q.dtype)
-            min_Q_denorm = min_Q * sigma + mean.to(min_Q.device).to(min_Q.dtype)
+            # ValueNorm: denormalize min_Q, then normalize target_Q for loss
+            min_Q_denorm = self.target_q_valuenorm.denormalize(min_Q, dtype="torch")
             next_state_value = min_Q_denorm - (self._get_alpha() * log_probs)
         else:
             # critics are raw-scale, safe to subtract directly
@@ -261,12 +259,8 @@ class CentralizedSACTrainer(BaseSACTrainer):
         target_Q = rewards + self.args.gamma * done_mask * next_state_value
 
         if self.use_valuenorm:
-            # Ensure shape is as expected for debugging
-            # (B, T)
-            # print(target_Q.shape)
-            # Update running stats with raw-scale targets
+            # (B, T)でValueNorm演算
             self.target_q_valuenorm.update(target_Q)
-            # Normalize targets for critic loss
             target_Q = self.target_q_valuenorm.normalize(target_Q)
         return target_Q.detach()
 

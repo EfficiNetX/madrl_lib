@@ -59,17 +59,17 @@ arguments:
     help: "Criticネットワークの層の数"
   use_ReLU:
     type: bool
-    default: true # Trueで有効 (store_false)
+    default: false # Trueで有効 (store_false)
     help: "活性化関数にReLUを使う (Falseでtanh)"
 
   # --- オプティマイザ & 学習率 ---
   actor_lr:
     type: float
-    default: 5e-5
+    default: 5e-4
     help: "Actorの学習率"
   critic_lr:
     type: float
-    default: 1e-5
+    default: 5e-4
     help: "Criticの学習率"
   alpha_lr:
     type: float
@@ -97,29 +97,39 @@ arguments:
   # --- エントロピー調整 ---
   auto_alpha:
     type: bool
-    default: true # trueで有効 (store_false)
+    default: true
     help: "自動エントロピー調整を使う"
   
   alpha:
     type: float
-    default: 0.01
+    default: 3
     help: "エントロピー正則化の温度パラメータ (自動調整を使わない場合)"
   
   initial_alpha:
     type: float
-    default: 1e-4
+    default: 3
     help: "自動調整時のalphaの初期値"
   
   target_entropy_ratio:
     type: float
-    default: 0.25
+    default: 0.2
     help: "目標エントロピー比率。離散の場合最大エントロピーに対する比率で指定。連続の場合は-dim(action_space)に対する倍率で指定"
+
+  min_alpha:
+    type: float
+    default: 1e-1
+    help: "自動エントロピー調整時のalphaの最小値"
+
+  max_alpha:
+    type: float
+    default: 10
+    help: "自動エントロピー調整時のalphaの最大値"
 
 
   # --- リプレイバッファ & バッチ ---
   buffer_size:
     type: int
-    default: 102400
+    default: 40960
     help: "リプレイバッファの最大エピソード数"
   batch_size:
     type: int
@@ -131,38 +141,43 @@ arguments:
     default: 1
     help: "Actor学習ステップでのミニエポック数"
 
+  train_interval:
+    type: int
+    default: 20
+    help: "学習間隔 (ステップ数)"
+
   # ===============================================
   # --- 3. 安定化テクニック & 損失 (調整可能) ---
   # ===============================================
     
   use_orthogonal:
     type: bool
-    default: true # Trueで有効 (store_false)
+    default: true
     help: "重みの直交初期化を使う"
 
   use_valuenorm:
       type: bool
-      default: true
+      default: false
       help: "target Q値のValueNorm正規化を有効にするかどうか"
     
   use_feature_normalization:
     type: bool
-    default: true # Trueで有効 (store_false)
+    default: false
     help: "入力特徴量 (観測) の正規化 (LayerNorm) を使う"
   
   use_max_grad_norm:
     type: bool
-    default: true # Trueで有効 (store_false)
+    default: true
     help: "勾配クリッピングを使用するかどうか"
 
   actor_max_grad_norm:
     type: float
-    default: 50.0
+    default: 10.0
     help: "Actorの勾配クリッピングの最大値"
 
   critic_max_grad_norm:
     type: float
-    default: 50.0
+    default: 10.0
     help: "Criticの勾配クリッピングの最大値"
 
   alpha_max_grad_norm:
@@ -182,7 +197,7 @@ arguments:
 
   min_log_prob:
     type: float
-    default: -200.0
+    default: -50.0
     help: "離散行動のlog_probの最小値"
 
   max_log_prob:
@@ -192,5 +207,5 @@ arguments:
 
   warmup_episodes:
     type: int
-    default: 0
+    default: 5120
     help: "学習開始前にReplay Bufferへ十分なデータを貯めるためのエピソード数"

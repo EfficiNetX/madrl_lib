@@ -43,7 +43,6 @@ class HASACPolicy:
         self.device = args.device
         self.actor.to(self.device)
 
-    @torch.no_grad()
     def get_action(self, obs: torch.Tensor, deterministic: bool) -> torch.Tensor:
         """
         行動を取得する。'(rollout時)'

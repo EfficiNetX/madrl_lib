@@ -63,8 +63,6 @@ class BaseSACTrainer:
         self._train_actor(batch)
         self._update_target_networks()
 
-        self.alphas.append(self._get_alpha().item())
-
     def _train_critic(self, batch):
         raise NotImplementedError
 
@@ -89,7 +87,6 @@ class BaseSACTrainer:
                 entropy = -torch.sum(probs * torch.log(probs + 1e-9), dim=-1)
             else:  # continuous
                 entropy = probs.entropy()
-            self.entropies.append(entropy.mean().item())
             # alphaの損失関数
             alpha_loss = (
                 self.log_alpha * (entropy - self.target_entropy).detach()

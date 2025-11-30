@@ -59,7 +59,6 @@ class IndependentSACTrainer(BaseSACTrainer):
             self.target_critic_2[i].to(self.args.device)
 
     def _train_critic(self, batch):
-        critic_losses = []
         valid_mask = (1 - batch["mask"].float()).squeeze(-1)
         mask_sum = valid_mask.sum()
         if mask_sum == 0:
@@ -100,17 +99,11 @@ class IndependentSACTrainer(BaseSACTrainer):
                     self.critic2[agent_id].parameters(), self.args.critic_max_grad_norm
                 )
             self.critic2[agent_id].optimizer.step()
-            critic_losses.append((critic_loss1.item() + critic_loss2.item()) / 2)
-        if critic_losses:
-            self.critic_losses.append(sum(critic_losses) / len(critic_losses))
 
     def _train_actor(self, batch):
         for _ in range(self.args.mini_epoch_N):
             agent_indices = list(range(self.args.num_agents))
             random.shuffle(agent_indices)
-            actor_losses = []
-            alpha_losses = []
-
             valid_mask = (1 - batch["mask"].float()).squeeze(-1)
             mask_sum = valid_mask.sum()
             if mask_sum == 0:
@@ -144,10 +137,6 @@ class IndependentSACTrainer(BaseSACTrainer):
 
                 valid_probs = probs[valid_mask.bool()]
                 _, alpha_loss_value = self._update_alpha(valid_probs.detach())
-
-                actor_losses.append(actor_loss.item())
-                if alpha_loss_value is not None:
-                    alpha_losses.append(alpha_loss_value)
 
     @torch.no_grad()
     def _calculate_target_q_values(self, batch, agent_id) -> torch.Tensor:

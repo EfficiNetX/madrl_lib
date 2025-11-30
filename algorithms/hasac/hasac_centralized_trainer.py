@@ -76,17 +76,12 @@ class CentralizedSACTrainer(BaseSACTrainer):
                 self.critic2.parameters(), self.args.critic_max_grad_norm
             )
         self.critic2.optimizer.step()
-        critic_loss = (critic_loss1 + critic_loss2) / 2
-        self.critic_losses.append(critic_loss.item())
 
     def _train_actor(self, batch):
         # ミニエポックのループ
         for _ in range(self.args.mini_epoch_N):
             agent_indices = list(range(self.args.num_agents))
             random.shuffle(agent_indices)
-            actor_losses_epoch = []
-            alpha_losses_epoch = []
-
             valid_mask = (1 - batch["mask"].float()).squeeze(-1)
             mask_sum = valid_mask.sum()
             if mask_sum == 0:
@@ -138,10 +133,6 @@ class CentralizedSACTrainer(BaseSACTrainer):
                 self.policy[agent_id].actor_optimizer.step()
                 valid_probs = agent_probs[valid_mask.bool()]
                 _, alpha_loss_value = self._update_alpha(valid_probs.detach())
-
-                actor_losses_epoch.append(actor_loss.item())
-                if alpha_loss_value is not None:
-                    alpha_losses_epoch.append(alpha_loss_value)
 
     def _update_target_networks(self):
         for target_param, param in zip(

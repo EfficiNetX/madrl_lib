@@ -102,12 +102,12 @@ arguments:
   
   alpha:
     type: float
-    default: 3
+    default: 7
     help: "エントロピー正則化の温度パラメータ (自動調整を使わない場合)"
   
   initial_alpha:
     type: float
-    default: 3
+    default: 7
     help: "自動調整時のalphaの初期値"
   
   target_entropy_ratio:

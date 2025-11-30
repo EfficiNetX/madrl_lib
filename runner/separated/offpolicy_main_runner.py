@@ -118,38 +118,6 @@ class OffPolicyMainRunner(BaseRunner):
                 mask=self.mask_trajectory_buffer,
                 avail_actions=self.avail_actions_trajectory_buffer,
             )
-            # 後ろ２つの次元を合計して平均報酬を計算
-            # 1エピソードあたりの合計報酬を計算し、スレッド間で平均を取る
-            episode_rewards = np.sum(self.rewards_trajectory_buffer, axis=(1, 2, 3))
-            self.show_reward_list.append(np.mean(episode_rewards))
-
-            if len(self.show_reward_list) == 10:
-                print(
-                    "Episode {} Average Reward: {}".format(
-                        episode,
-                        np.mean(self.show_reward_list),
-                    )
-                )
-                print("Min Reward: {}".format(np.min(self.show_reward_list)))
-                print("Max Reward: {}".format(np.max(self.show_reward_list)))
-                self.show_reward_list = []
-                # 一番最初のstateを入力したときのactionの確率分布を表示
-                for agent_id in range(self.all_args.num_agents):
-                    obs_t = torch.tensor(
-                        self.obs_trajectory_buffer[0, 0, agent_id, :],
-                        device=self.all_args.device,
-                        dtype=torch.float32,
-                    ).unsqueeze(0)
-                    with torch.no_grad():
-                        _, _, action_probs = self.policy[
-                            agent_id
-                        ].get_action_with_probability(obs_t)
-                    print(
-                        "Agent {} Action Probabilities: {}".format(
-                            agent_id,
-                            action_probs.cpu().detach().numpy(),
-                        )
-                    )
             # バッチ数分のデータが溜まったら学習を行う
             if (
                 self.buffer.can_sample(self.all_args.batch_size)

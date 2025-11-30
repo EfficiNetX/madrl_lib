@@ -46,20 +46,12 @@ class HASACPolicy:
     def get_action(self, obs: torch.Tensor, deterministic: bool) -> torch.Tensor:
         """
         行動を取得する。'(rollout時)'
+        action: (num_rollout_threads, action_shape)
+        action_env: (num_rollout_threads, action_dim)
         """
         action, action_env, _, _ = self._get_action_and_probs(
             obs, deterministic, type="rollout"
         )
-        """
-        assert action.shape == (
-            self.args.num_rollout_threads,
-            self.action_shape,
-        )
-        assert action_env.shape == (
-            self.args.num_rollout_threads,
-            self.action_dim,
-        )
-        """
         return action, action_env
 
     def get_action_with_probability(
@@ -67,26 +59,13 @@ class HASACPolicy:
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         行動確率を取得する。
+        action_env: (batch_size, episode_length, action_dim)
+        log_prob: (batch_size, episode_length)
+        probs: (batch_size, episode_length, action_dim)
         """
         _, action_env, log_prob, probs = self._get_action_and_probs(
             obs, deterministic=False, type="train"
         )
-        """
-        assert action_env.shape == (
-            self.args.batch_size,
-            self.args.episode_length,
-            self.action_dim,
-        )
-        assert log_prob.shape == (
-            self.args.batch_size,
-            self.args.episode_length,
-        )
-        assert probs.shape == (
-            self.args.batch_size,
-            self.args.episode_length,
-            self.action_dim,
-        )
-        """
         return action_env, log_prob, probs
 
     def _get_action_and_probs(
@@ -121,7 +100,6 @@ class HASACPolicy:
             ).float()
             log_prob = None  # type = "rollout"のときは不要
         elif not deterministic:
-            # gumbel-softmaxでサンプリング hard = Trueでone-hot化
             action_env = torch.nn.functional.gumbel_softmax(
                 logits, tau=self.args.gumbel_softmax_tau, hard=False, dim=-1
             )
@@ -143,6 +121,11 @@ class HASACPolicy:
     def _get_action_and_probs_continuous(
         self, obs: torch.Tensor, deterministic: bool = False, type: str = "rollout"
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        action: (batch_size, action_shape)
+        action_env: (batch_size, action_dim)
+        log_prob: (batch_size,)
+        """
         mean, log_std = self.actor(obs)
         std = log_std.exp()
         normal = torch.distributions.Normal(mean, std)

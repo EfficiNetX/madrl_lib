@@ -1,7 +1,6 @@
 import copy
 import random
 
-import numpy as np
 import torch
 
 from algorithms.hasac.algorithm.hasac_critic import Critic
@@ -12,7 +11,6 @@ from utils.valuenorm import ValueNorm
 class IndependentSACTrainer(BaseSACTrainer):
     def __init__(self, args, policy):
         super().__init__(args, policy)
-        # ValueNorm for each agent (optional, like centralized)
         self.use_valuenorm = self.args.use_valuenorm
         if self.use_valuenorm:
             self.target_q_valuenorm = [
@@ -23,11 +21,9 @@ class IndependentSACTrainer(BaseSACTrainer):
                 )
                 for _ in range(self.args.num_agents)
             ]
-        # 各エージェントごとに2つのCriticを持つ
         self.critic1 = []
         self.critic2 = []
         for i in range(self.args.num_agents):
-            # Critic 1
             critic1 = Critic(
                 args,
                 total_obs_dim=self.policy[i].obs_dim,
@@ -40,8 +36,6 @@ class IndependentSACTrainer(BaseSACTrainer):
                 weight_decay=self.args.weight_decay,
             )
             self.critic1.append(critic1)
-
-            # Critic 2
             critic2 = Critic(
                 args,
                 total_obs_dim=self.policy[i].obs_dim,
@@ -65,46 +59,30 @@ class IndependentSACTrainer(BaseSACTrainer):
             self.target_critic_2[i].to(self.args.device)
 
     def _train_critic(self, batch):
-        if getattr(self, "train_step_counter", 0) % 10 == 0:
-            self.log_initial_q_landscape(batch)
-
         critic_losses = []
         valid_mask = (1 - batch["mask"].float()).squeeze(-1)
         mask_sum = valid_mask.sum()
         if mask_sum == 0:
             return
-
         for agent_id in range(self.args.num_agents):
             target_Q = self._calculate_target_q_values(batch, agent_id)
-
-            # (batch, T, A)
             agent_action_env = self.action_env.view(
                 self.args.batch_size,
                 self.args.episode_length,
                 self.args.num_agents,
                 -1,
             )[:, :, agent_id, :]
-
             critic_input = torch.cat(
-                [
-                    batch["obs"][:, :-1, agent_id, :],
-                    agent_action_env,
-                ],
-                dim=-1,
+                [batch["obs"][:, :-1, agent_id, :], agent_action_env], dim=-1
             )
-
-            # ValueNorm: normalize target_Q for loss
             if self.use_valuenorm:
                 self.target_q_valuenorm[agent_id].update(target_Q)
                 target_Q_norm = self.target_q_valuenorm[agent_id].normalize(target_Q)
             else:
                 target_Q_norm = target_Q
-
-            # Critic 1の更新
             q1_value = self.critic1[agent_id].forward(critic_input).squeeze(-1)
             loss1 = target_Q_norm - q1_value
             critic_loss1 = (loss1**2 * valid_mask).sum() / mask_sum
-
             self.critic1[agent_id].optimizer.zero_grad()
             critic_loss1.backward()
             if self.args.use_max_grad_norm:
@@ -112,12 +90,9 @@ class IndependentSACTrainer(BaseSACTrainer):
                     self.critic1[agent_id].parameters(), self.args.critic_max_grad_norm
                 )
             self.critic1[agent_id].optimizer.step()
-
-            # Critic 2の更新
             q2_value = self.critic2[agent_id].forward(critic_input).squeeze(-1)
             loss2 = target_Q_norm - q2_value
             critic_loss2 = (loss2**2 * valid_mask).sum() / mask_sum
-
             self.critic2[agent_id].optimizer.zero_grad()
             critic_loss2.backward()
             if self.args.use_max_grad_norm:
@@ -125,9 +100,7 @@ class IndependentSACTrainer(BaseSACTrainer):
                     self.critic2[agent_id].parameters(), self.args.critic_max_grad_norm
                 )
             self.critic2[agent_id].optimizer.step()
-
             critic_losses.append((critic_loss1.item() + critic_loss2.item()) / 2)
-
         if critic_losses:
             self.critic_losses.append(sum(critic_losses) / len(critic_losses))
 
@@ -142,7 +115,6 @@ class IndependentSACTrainer(BaseSACTrainer):
             mask_sum = valid_mask.sum()
             if mask_sum == 0:
                 continue
-
             for agent_id in agent_indices:
                 agent_obs = batch["obs"][:, :-1, agent_id, :]
                 action_env, log_prob, probs = self.policy[
@@ -177,31 +149,17 @@ class IndependentSACTrainer(BaseSACTrainer):
                 if alpha_loss_value is not None:
                     alpha_losses.append(alpha_loss_value)
 
-            if actor_losses:
-                self.actor_losses.append(sum(actor_losses) / len(actor_losses))
-            if alpha_losses:
-                self.alpha_losses.append(sum(alpha_losses) / len(alpha_losses))
-
     @torch.no_grad()
     def _calculate_target_q_values(self, batch, agent_id) -> torch.Tensor:
         agent_obs_next = batch["obs"][:, 1:, agent_id, :]
         action_env_next, log_prob_next, _ = self.policy[
             agent_id
         ].get_action_with_probability(agent_obs_next)
-
         input_critic = torch.cat([agent_obs_next, action_env_next], dim=-1)
-
         Q_1 = self.target_critic_1[agent_id].forward(input_critic).squeeze(-1)
         Q_2 = self.target_critic_2[agent_id].forward(input_critic).squeeze(-1)
         min_Q = torch.min(Q_1, Q_2)
-
-        # 1エピソードあたりの合計報酬を計算し、バッチ内のエピソードで平均を取る
-        # (B, T, N, 1) -> sum over T, N, 1 -> (B,) -> mean -> scalar
-        episode_rewards = batch["rewards"].sum(dim=(1, 2, 3))
-        self.rewards.append(episode_rewards.mean().item())
-
         rewards = batch["rewards"][:, :, agent_id, 0]
-
         if self.use_valuenorm:
             min_Q_denorm = self.target_q_valuenorm[agent_id].denormalize(
                 min_Q, dtype="torch"
@@ -209,15 +167,12 @@ class IndependentSACTrainer(BaseSACTrainer):
             next_state_value = min_Q_denorm - (self._get_alpha() * log_prob_next)
         else:
             next_state_value = min_Q - (self._get_alpha() * log_prob_next)
-
         done_mask = (1 - batch["mask"].float()).squeeze(-1)
         target_Q = rewards + self.args.gamma * done_mask * next_state_value
-
         return target_Q.detach()
 
     def _update_target_networks(self):
         for agent_id in range(self.args.num_agents):
-            # Critic 1
             for target_param, param in zip(
                 self.target_critic_1[agent_id].parameters(),
                 self.critic1[agent_id].parameters(),
@@ -225,33 +180,10 @@ class IndependentSACTrainer(BaseSACTrainer):
                 target_param.data.copy_(
                     self.args.tau * param.data + (1 - self.args.tau) * target_param.data
                 )
-            # Critic 2
             for target_param, param in zip(
                 self.target_critic_2[agent_id].parameters(),
                 self.critic2[agent_id].parameters(),
             ):
                 target_param.data.copy_(
                     self.args.tau * param.data + (1 - self.args.tau) * target_param.data
-                )
-
-    def log_initial_q_landscape(self, batch):
-        """
-        各エージェントの初期状態での各行動(one-hot)ごとのQ値をlog出力
-        """
-        with torch.no_grad():
-            for agent_id in range(self.args.num_agents):
-                initial_obs_agent = batch["obs"][:, 0, agent_id, :]
-                act_dim = self.policy[agent_id].action_dim
-                batch_size = initial_obs_agent.shape[0]
-                q_per_action = []
-                for act_i in range(act_dim):
-                    one_hot_act = torch.zeros(
-                        batch_size, act_dim, device=self.args.device
-                    )
-                    one_hot_act[:, act_i] = 1
-                    critic_input = torch.cat([initial_obs_agent, one_hot_act], dim=-1)
-                    q_val = self.critic1[agent_id].forward(critic_input)
-                    q_per_action.append(q_val.mean().item())
-                print(
-                    f"[DEBUG] Agent {agent_id} Q-values per action (init): {np.round(q_per_action, 4)}"
                 )

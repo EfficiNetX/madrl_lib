@@ -16,12 +16,12 @@ arguments:
   share_observation:
     type: bool
     default: true
-    help: "Critic学習時に観測を共有するかどうか"
+    help: "Critic学習時に観測を共有するかどうか。TrueならばHASAC、FalseならばIndependent SACとなる"
     
   use_centralized_V:
     type: bool
     default: true
-    help: "中央集権Criticを使用するかどうか"
+    help: "中央集権Criticを使用するかどうか。TrueならばHASAC、FalseならばIndependent SACとなる"
 
   # 行動の性質
   action_type:
@@ -73,7 +73,7 @@ arguments:
     help: "Criticの学習率"
   alpha_lr:
     type: float
-    default: 1e-3
+    default: 8e-4
     help: "Alphaの学習率"
   opti_eps:
     type: float
@@ -112,12 +112,12 @@ arguments:
   
   target_entropy_ratio:
     type: float
-    default: 0.2
+    default: 0.5
     help: "目標エントロピー比率。離散の場合最大エントロピーに対する比率で指定。連続の場合は-dim(action_space)に対する倍率で指定"
 
   min_alpha:
     type: float
-    default: 1e-1
+    default: 1
     help: "自動エントロピー調整時のalphaの最小値"
 
   max_alpha:
@@ -207,5 +207,5 @@ arguments:
 
   warmup_episodes:
     type: int
-    default: 5120
+    default: 100
     help: "学習開始前にReplay Bufferへ十分なデータを貯めるためのエピソード数"

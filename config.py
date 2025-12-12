@@ -10,7 +10,6 @@ def get_config():
         "--algorithm_name",
         default="MAT",
         choices=[
-            "QMIX",
             "MADDPG",
             "IPPO",
             "RMAPPO",
@@ -44,7 +43,6 @@ def get_config():
     parser.add_argument(
         "--algorithm_name",
         choices=[
-            "QMIX",
             "MADDPG",
             "IPPO",
             "RMAPPO",

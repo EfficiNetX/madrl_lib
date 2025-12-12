@@ -8,7 +8,7 @@ from runner.separated.base_runner import BaseRunner
 
 class OffPolicyMainRunner(BaseRunner):
     """
-    Value-basedアルゴリズム（QMIX/VDN等）用のメインRunnerクラス
+    HASAC用のメインRunnerクラス
     """
 
     def __init__(self, config):

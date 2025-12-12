@@ -1,11 +1,15 @@
 import torch
+
 from algorithms.r_mappo.algorithm.r_actor_critc import R_Actor, R_Critic
 
 
 class HAPPO_Policy:
-
     def __init__(
-        self, args, obs_space, share_obs_space, action_space, 
+        self,
+        args,
+        obs_space,
+        share_obs_space,
+        action_space,
     ):
         self.args = args
         self.lr = args.lr

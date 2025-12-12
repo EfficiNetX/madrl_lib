@@ -1,0 +1,211 @@
+arguments:
+  # ===============================================
+  # --- 1. アルゴリズム挙動 (固定: 変更不可) ---
+  # ===============================================。
+
+  share_policy:
+    type: bool
+    default: false
+    readonly: true # 読み取り専用
+    help: "(HASAC-Fixed) 異質エージェントのためポリシーは共有しない"
+
+  # ===============================================
+  # --- 2. 調整可能なハイパーパラメータ ---
+  # ===============================================
+
+  share_observation:
+    type: bool
+    default: true
+    help: "Critic学習時に観測を共有するかどうか。TrueならばHASAC、FalseならばIndependent SACとなる"
+    
+  use_centralized_V:
+    type: bool
+    default: true
+    help: "中央集権Criticを使用するかどうか。TrueならばHASAC、FalseならばIndependent SACとなる"
+
+  # 行動の性質
+  action_type:
+    type: str
+    default: "discrete"
+    choices: ["continuous", "discrete"]
+    help: "行動空間のタイプ (連続 or 離散)"
+
+  deterministic:
+    type: bool
+    default: False
+    help: "決定論的ポリシーを使用するかどうか。Trueの場合は,rollout時に一番高い確率の行動を確実に選択する"
+
+  gumbel_softmax_tau:
+    type: float
+    default: 1.0
+    help: "Gumbel-Softmaxの温度パラメータ。0に近いほどone-hotに近づく。"
+
+  # --- ネットワーク & アーキテクチャ ---
+  actor_hidden_size:
+    type: int
+    default: 256
+    help: "Actorネットワークの隠れ層次元"
+  actor_layer_N:
+    type: int
+    default: 2
+    help: "Actorネットワークの層の数"
+  critic_hidden_size:
+    type: int
+    default: 256
+    help: "Criticネットワークの隠れ層次元"
+  critic_layer_N:
+    type: int
+    default: 2
+    help: "Criticネットワークの層の数"
+  use_ReLU:
+    type: bool
+    default: false # Trueで有効 (store_false)
+    help: "活性化関数にReLUを使う (Falseでtanh)"
+
+  # --- オプティマイザ & 学習率 ---
+  actor_lr:
+    type: float
+    default: 5e-4
+    help: "Actorの学習率"
+  critic_lr:
+    type: float
+    default: 5e-4
+    help: "Criticの学習率"
+  alpha_lr:
+    type: float
+    default: 5e-4
+    help: "Alphaの学習率"
+  opti_eps:
+    type: float
+    default: 1e-5
+    help: "RMSprop optimizer epsilon"
+  weight_decay:
+    type: float
+    default: 0
+    help: "重み減衰"
+  tau:
+    type: float
+    default: 0.005
+    help: "ターゲットネットワーク更新のためのソフト更新率"
+
+  # --- 損失 & 報酬シグナル ---
+  gamma:
+    type: float
+    default: 0.99
+    help: "割引率"
+
+  # --- エントロピー調整 ---
+  auto_alpha:
+    type: bool
+    default: true
+    help: "自動エントロピー調整を使う"
+  
+  alpha:
+    type: float
+    default: 5
+    help: "エントロピー正則化の温度パラメータ (自動調整を使わない場合)"
+  
+  initial_alpha:
+    type: float
+    default: 1
+    help: "自動調整時のalphaの初期値"
+  
+  target_entropy_ratio:
+    type: float
+    default: 0.1
+    help: "目標エントロピー比率。離散の場合最大エントロピーに対する比率で指定。連続の場合は-dim(action_space)に対する倍率で指定"
+
+  min_alpha:
+    type: float
+    default: 5e-1
+    help: "自動エントロピー調整時のalphaの最小値"
+
+  max_alpha:
+    type: float
+    default: 20
+    help: "自動エントロピー調整時のalphaの最大値"
+
+
+  # --- リプレイバッファ & バッチ ---
+  buffer_size:
+    type: int
+    default: 2048
+    help: "リプレイバッファの最大ステップ数"
+  batch_size:
+    type: int
+    default: 1024
+    help: "学習時にサンプリングするステップ数"
+
+  mini_epoch_N:
+    type: int
+    default: 1
+    help: "Actor学習ステップでのミニエポック数"
+
+  train_interval:
+    type: int
+    default: 2
+    help: "学習間隔 (エピソード数)"
+
+  # ===============================================
+  # --- 3. 安定化テクニック & 損失 (調整可能) ---
+  # ===============================================
+    
+  use_orthogonal:
+    type: bool
+    default: true
+    help: "重みの直交初期化を使う"
+
+  use_valuenorm:
+      type: bool
+      default: false
+      help: "target Q値のValueNorm正規化を有効にするかどうか"
+    
+  use_feature_normalization:
+    type: bool
+    default: false
+    help: "入力特徴量 (観測) の正規化 (LayerNorm) を使う"
+  
+  use_max_grad_norm:
+    type: bool
+    default: true
+    help: "勾配クリッピングを使用するかどうか"
+
+  actor_max_grad_norm:
+    type: float
+    default: 1.0
+    help: "Actorの勾配クリッピングの最大値"
+
+  critic_max_grad_norm:
+    type: float
+    default: 1.0
+    help: "Criticの勾配クリッピングの最大値"
+
+  alpha_max_grad_norm:
+    type: float
+    default: 10.0
+    help: "Alphaの勾配クリッピングの最大値"
+
+  min_log_std:
+    type: float
+    default: -100.0
+    help: "連続行動のlog_stdの最小値"
+
+  max_log_std:
+    type: float
+    default: 20.0
+    help: "連続行動のlog_stdの最大値"
+
+  min_log_prob:
+    type: float
+    default: -50.0
+    help: "離散行動のlog_probの最小値"
+
+  max_log_prob:
+    type: float
+    default: 0.0
+    help: "離散行動のlog_probの最大値"
+
+  warmup_episodes:
+    type: int
+    default: 50
+    help: "学習開始前にReplay Bufferへ十分なデータを貯めるためのエピソード数"

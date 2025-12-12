@@ -1,8 +1,9 @@
-from config import get_config
+import importlib
+
 import torch
 
+from config import get_config
 from envs.env_wrappers import SubprocVecEnv
-import importlib
 
 
 def make_train_envs(args):
@@ -39,6 +40,10 @@ def main(args):
         from runner.shared.main_runner import UserEnvRunner as Runner
     else:
         from runner.separated.main_runner import UserEnvRunner as Runner
+
+    # HASACを動かすためのコード
+    if args.algorithm_name == "HASAC":
+        from runner.separated.offpolicy_main_runner import OffPolicyMainRunner as Runner
 
     runner = Runner(config)
     runner.run()

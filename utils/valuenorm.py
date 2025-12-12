@@ -89,7 +89,7 @@ class ValueNorm(nn.Module):
 
         return out
 
-    def denormalize(self, input_vector):
+    def denormalize(self, input_vector, dtype="numpy"):
         """Transform normalized data back into original distribution"""
         if isinstance(input_vector, np.ndarray):
             input_vector = torch.from_numpy(input_vector)
@@ -100,7 +100,11 @@ class ValueNorm(nn.Module):
             input_vector * torch.sqrt(var)[(None,) * self.norm_axes]
             + mean[(None,) * self.norm_axes]
         )
-
-        out = out.cpu().numpy()
+        if dtype == "numpy":
+            out = out.cpu().numpy()
+        elif dtype == "torch":
+            out = out
+        else:
+            raise ValueError("Unsupported dtype. Use 'numpy' or 'torch'.")
 
         return out

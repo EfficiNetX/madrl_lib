@@ -126,9 +126,7 @@ class TransformerPolicy(nn.Module):
         actions = actions.reshape(-1, self.num_agents, self.num_actions)  # [B, N, 1]
 
         if available_actions is not None:
-            available_actions = available_actions.reshape(
-                -1, self.num_agents, self.num_actions
-            )
+            available_actions = available_actions.reshape(-1, self.num_agents, self.num_actions)
 
         action_log_probs, values, entropy = self.transformer(
             obs=obs,

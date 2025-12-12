@@ -1,7 +1,28 @@
 import argparse
+import os
+
+import yaml
 
 
 def get_config():
+    pre_perser = argparse.ArgumentParser(add_help=False)
+    pre_perser.add_argument(
+        "--algorithm_name",
+        default="MAT",
+        choices=[
+            "MADDPG",
+            "IPPO",
+            "RMAPPO",
+            "HASAC",
+            "ISAC",
+            "HAPPO",
+            "VDN",
+            "MAT",
+            "MAT_DEC",
+        ],
+        help="Yamlファイルを選択するためのアルゴリズム名",
+    )
+    pre_args, _ = pre_perser.parse_known_args()
     """ハイパラを設定"""
     parser = argparse.ArgumentParser(
         description="Multi-Agent Reinforcement Learning (MARL)ライブラリの開発",
@@ -22,7 +43,6 @@ def get_config():
     parser.add_argument(
         "--algorithm_name",
         choices=[
-            "QMIX",
             "MADDPG",
             "IPPO",
             "RMAPPO",
@@ -33,7 +53,7 @@ def get_config():
             "MAT",
             "MAT_DEC",
         ],
-        default="MAT",
+        default=pre_args.algorithm_name,
         help="アルゴリズム名の指定",
     )
     parser.add_argument(
@@ -49,18 +69,11 @@ def get_config():
         help="エージェントの数",
     )
     parser.add_argument(
-        "--share_observation",
-        type=bool,
-        default=True,
-        help="centralized_Vを計算するかどうか",
-    )
-    parser.add_argument(
         "--num_env_steps",
         type=int,
         default=10e6,
         help="訓練するステップ数",
     )
-
     # env parameters
     parser.add_argument(
         "--user_name",
@@ -69,218 +82,6 @@ def get_config():
         choices=["DemoUser", "LogisticsUser"],
         help="環境名の指定",
     )
-
-    # network parameters
-    parser.add_argument(
-        "--share_policy",
-        action="store_true",
-        default=False,
-        help="Whether to use the same policy for all agents",
-    )
-    parser.add_argument(
-        "--use_centralized_V",
-        action="store_false",
-        default=True,
-        help="Whether to use centralized V function",
-    )
-    parser.add_argument(
-        "--hidden_size",
-        type=int,
-        default=64,
-        help="Dimension of hidden layers for actor/critic networks",
-    )
-    parser.add_argument(
-        "--use_popart",
-        action="store_true",
-        default=False,
-        help="by default False, use PopArt to normalize rewards.",
-    )
-    parser.add_argument(
-        "--use_valuenorm",
-        action="store_false",
-        default=True,
-        help="by default True, use running mean and std to normalize rewards.",
-    )
-    parser.add_argument(
-        "--use_orthogonal",
-        action="store_false",
-        default=True,
-        help="Whether to use Orthogonal initialization for weights and 0 initialization for biases",
-    )
-    parser.add_argument(
-        "--use_feature_normalization",
-        action="store_false",
-        default=True,
-        help="Whether to apply layernorm to the inputs",
-    )
-    parser.add_argument(
-        "--use_ReLU",
-        action="store_false",
-        default=True,
-        help="Whether to use ReLU",
-    )
-    parser.add_argument(
-        "--layer_N",
-        type=int,
-        default=1,
-        help="Number of layers for actor/critic networks",
-    )
-    parser.add_argument(
-        "--gain",
-        type=float,
-        default=0.01,
-        help="The gain # of last action layer",
-    )
-
-    # recurrent parameters
-    parser.add_argument(
-        "--recurrent_N",
-        type=int,
-        default=3,
-        help="The number of recurrent layers.",
-    )
-    parser.add_argument(
-        "--use_recurrent_policy",
-        action="store_false",
-        default=True,
-        help="use a recurrent policy",
-    )
-    parser.add_argument(
-        "--use_naive_recurrent_policy",
-        action="store_true",
-        default=False,
-        help="Whether to use a naive recurrent policy",
-    )
-    parser.add_argument(
-        "--data_chunk_length",
-        type=int,
-        default=10,
-        help="Time length of chunks used to train a recurrent_policy",
-    )
-
-    # optimizer parameters
-    parser.add_argument(
-        "--lr",
-        type=float,
-        default=5e-5,
-        help="learning rate (default: 5e-5)",
-    )
-    parser.add_argument(
-        "--critic_lr",
-        type=float,
-        default=5e-4,
-        help="critic learning rate (default: 5e-4)",
-    )
-    parser.add_argument(
-        "--opti_eps",
-        type=float,
-        default=1e-5,
-        help="RMSprop optimizer epsilon (default: 1e-5)",
-    )
-    parser.add_argument(
-        "--weight_decay",
-        type=float,
-        default=0,
-    )
-
-    # ppo parameters
-    parser.add_argument(
-        "--ppo_epoch",
-        type=int,
-        default=15,
-        help="number of ppo epochs (default: 15)",
-    )
-    parser.add_argument(
-        "--use_clipped_value_loss",
-        action="store_false",
-        default=True,
-        help="by default, clip loss value. If set, do not clip loss value.",
-    )
-    parser.add_argument(
-        "--clip_param",
-        type=float,
-        default=0.2,
-        help="ppo clip parameter (default: 0.2)",
-    )
-    parser.add_argument(
-        "--num_mini_batch",
-        type=int,
-        default=1,
-        help="number of batches for ppo (default: 1)",
-    )
-    parser.add_argument(
-        "--entropy_coef",
-        type=float,
-        default=0.01,
-        help="entropy term coefficient (default: 0.01)",
-    )
-    parser.add_argument(
-        "--value_loss_coef",
-        type=float,
-        default=1,
-        help="value loss coefficient (default: 0.5)",
-    )
-    parser.add_argument(
-        "--use_max_grad_norm",
-        action="store_false",
-        default=True,
-        help="by default, use max norm of gradients. If set, do not use.",
-    )
-    parser.add_argument(
-        "--max_grad_norm",
-        type=float,
-        default=10.0,
-        help="max norm of gradients (default: 0.5)",
-    )
-    parser.add_argument(
-        "--gamma",
-        type=float,
-        default=0.99,
-        help="discount factor for rewards (default: 0.99)",
-    )
-    parser.add_argument(
-        "--use_gae",
-        action="store_false",
-        default=True,
-        help="use generalized advantage estimation",
-    )
-    parser.add_argument(
-        "--gae_lambda",
-        type=float,
-        default=0.95,
-        help="gae lambda parameter (default: 0.95)",
-    )
-    parser.add_argument(
-        "--use_huber_loss",
-        action="store_false",
-        default=True,
-        help="by default, use huber loss. If set, do not use huber loss.",
-    )
-    parser.add_argument(
-        "--use_value_active_masks",
-        action="store_false",
-        default=True,
-        help="by default True, whether to mask useless data in value loss.",
-    )
-    parser.add_argument(
-        "--use_policy_active_masks",
-        action="store_false",
-        default=True,
-        help="by default True, whether to mask useless data in policy loss.",
-    )
-    parser.add_argument(
-        "--huber_delta",
-        type=float,
-        default=10.0,
-        help=" coefficience of huber loss.",
-    )
-    # run parameters
-    parser.add_argument(
-        "--use_linear_lr_decay",
-        action="store_true",
-        default=False,
-        help="use a linear schedule on the learning rate",
-    )
     # log parameters
     parser.add_argument(
         "--log_interval",
@@ -288,9 +89,60 @@ def get_config():
         default=50,
         help="time duration between contiunous twice log printing.",
     )
+    # アルゴリズムに応じてyamlファイルからハイパラを読み込む
+    config_dir = "alg_config"
+    defaults = {}
+    type_map = {"int": int, "float": float, "str": str, "bool": bool}
+    config_path = f"{config_dir}/{pre_args.algorithm_name}.yaml"
 
-    # add for transformer
-    parser.add_argument("--num_block", type=int, default=1)
-    parser.add_argument("--num_embd", type=int, default=64)
-    parser.add_argument("--num_head", type=int, default=1)
+    # 設定ファイルの読み込み
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"{config_path} is not found.")
+    else:
+        print(f"Loading configuration from {config_path}")
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        if data is None:
+            raise ValueError(f"{config_path} is empty.")
+
+    if "arguments" not in data:
+        raise KeyError(f"'arguments' key is not found in {config_path}.")
+    for name, params in data["arguments"].items():
+        arg_name = f"--{name}"
+        arg_type_str = params.get("type", "str")
+        arg_type = type_map.get(arg_type_str, str)
+        arg_help = params.get("help", "")
+        default_val = params.get("default")
+
+        is_readonly = params.get("readonly", False)
+        defaults[name] = default_val
+        if is_readonly:
+            continue
+
+        if arg_type is bool:
+            action = "store_true" if not default_val else "store_false"
+            parser.add_argument(
+                arg_name,
+                action=action,
+                default=default_val,
+                help=arg_help,
+            )
+        else:
+            parser.add_argument(
+                arg_name,
+                type=arg_type,
+                default=default_val,
+                help=arg_help,
+            )
+
+    parser.set_defaults(**defaults)
+
     return parser
+
+
+if __name__ == "__main__":
+    parser = get_config()
+    args = parser.parse_args()
+    print("--- Configurations ---")
+    for arg in vars(args):
+        print(f"{arg}: {getattr(args, arg)}")

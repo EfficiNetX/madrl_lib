@@ -1,9 +1,10 @@
-import torch.nn as nn
 import torch
+import torch.nn as nn
+
+from algorithms.utils.act import ACTLayer
 from algorithms.utils.mlp import MLPBase
 from algorithms.utils.rnn import RNNLayer
-from algorithms.utils.act import ACTLayer
-from algorithms.utils.util import init, check
+from algorithms.utils.util import check, init
 
 
 class R_Actor(nn.Module):

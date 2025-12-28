@@ -49,7 +49,7 @@ arguments:
   # --- オプティマイザ & 学習率 ---
   lr:
     type: float
-    default: 5e-4
+    default: 5e-5
     help: "学習率 (Q-NetworkとMixer共通)"
   opti_eps:
     type: float
@@ -89,10 +89,10 @@ arguments:
     type: float
     default: 0.05
     help: "ε-greedy探索の最終値"
-  epsilon_anneal_time:
-    type: int
-    default: 360000000 
-    help: "εを減衰させるステップ数"
+  epsilon_anneal_ratio:
+    type: float
+    default: 0.9
+    help: "epsilon_startからepsilon_finalまで減衰するのにかかるステップ数 / num_env_stepsの割合"
 
   # --- QMIX ミキサー & ハイパーネットワーク ---
   mixer_embed_dim:

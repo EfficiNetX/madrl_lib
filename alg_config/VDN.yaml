@@ -7,19 +7,19 @@ arguments:
     type: bool
     default: true
     readonly: true # 読み取り専用
-    help: "(QMIX-Fixed) CTDEのため観測を共有"
+    help: "(VDN-Fixed) CTDEのため観測を共有"
     
   use_centralized_V:
     type: bool
     default: true
     readonly: true # 読み取り専用
-    help: "(QMIX-Fixed) CTDEのため中央集権Criticを使用"
+    help: "(VDN-Fixed) CTDEのため中央集権Criticを使用"
 
   share_policy:
     type: bool
     default: true
     readonly: true # 読み取り専用
-    help: "(QMIX-Fixed) ポリシーを共有"
+    help: "(VDN-Fixed) ポリシーを共有"
 
   # ===============================================
   # --- 2. 調整可能なハイパーパラメータ ---
@@ -31,11 +31,26 @@ arguments:
     default: 64
     help: "エージェント毎のRNN(Q)ネットワークの隠れ層次元"
 
+  layer_N:
+    type: int
+    default: 1
+    help: "MLPBaseの追加層数（入力層の後に続く隠れ層の数）"
+
+  recurrent_N:
+    type: int
+    default: 1
+    help: "RNNLayerのGRU層の数"
+
+  use_ReLU:
+    type: bool
+    default: true
+    help: "活性化関数にReLUを使う (Falseでtanh)"
+
   # --- オプティマイザ & 学習率 ---
   lr:
     type: float
-    default: 5e-5
-    help: "学習率 (Q-NetworkとMixer共通)"
+    default: 5e-4
+    help: "学習率 (Q-Network)"
   opti_eps:
     type: float
     default: 1e-5
@@ -46,14 +61,6 @@ arguments:
     help: "重み減衰"
 
   # --- 損失 & 報酬シグナル ---
-  use_max_grad_norm:
-    type: bool
-    default: true # Trueで有効 (store_false)
-    help: "勾配クリッピングを有効にする"
-  max_grad_norm:
-    type: float
-    default: 10.0
-    help: "勾配クリッピングの最大値"
   gamma:
     type: float
     default: 0.99
@@ -86,3 +93,32 @@ arguments:
     type: int
     default: 3180000000  
     help: "εを減衰させるステップ数"
+
+  # ===============================================
+  # --- 3. 安定化テクニック (調整可能) ---
+  # ===============================================
+    
+  use_orthogonal:
+    type: bool
+    default: true
+    help: "重みの直交初期化を使う"
+    
+  use_feature_normalization:
+    type: bool
+    default: true
+    help: "入力特徴量 (観測) の正規化 (LayerNorm) を使う"
+  
+  use_max_grad_norm:
+    type: bool
+    default: true
+    help: "勾配クリッピングを有効にする"
+
+  max_grad_norm:
+    type: float
+    default: 10.0
+    help: "勾配クリッピングの最大値"
+
+  gain:
+    type: float
+    default: 0.01
+    help: "出力層の初期化ゲイン"

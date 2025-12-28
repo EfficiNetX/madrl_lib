@@ -3,7 +3,7 @@ import time
 import numpy as np
 import torch
 
-from runner.separated.base_runner import BaseRunner
+from runner.shared.base_runner import BaseRunner
 
 
 class OffPolicyMainRunner(BaseRunner):
@@ -13,57 +13,6 @@ class OffPolicyMainRunner(BaseRunner):
 
     def __init__(self, config):
         super().__init__(config)
-        if self.all_args.algorithm_name == "HASAC":
-            from algorithms.hasac.algorithm.hasac_policy import HASACPolicy as Policy
-
-            if self.all_args.use_centralized_V:
-                from algorithms.hasac.hasac_centralized_trainer import (
-                    CentralizedSACTrainer as Trainer,
-                )
-            else:
-                from algorithms.hasac.hasac_independent_trainer import (
-                    IndependentSACTrainer as Trainer,
-                )
-            from utils.offpolicy_buffer import EpisodeReplayBuffer as Buffer
-        self.policy = []
-        self.obs_dim = len(self.envs.observation_space[0])
-        # すべてのエージェントで同じ観測・行動次元を仮定
-        self.action_shape = (
-            1
-            if self.all_args.action_type == "discrete"
-            else len(self.envs.action_space[0])
-        )
-        self.action_dim = (
-            len(self.envs.action_space[0])
-            if self.all_args.action_type == "discrete"
-            else len(self.envs.action_space[0])
-        )
-        for agent_id in range(self.all_args.num_agents):
-            # policy network
-            po = Policy(
-                self.all_args,
-                self.envs.observation_space[agent_id],
-                self.share_observation_space,
-                self.envs.action_space[agent_id],
-            )
-            self.policy.append(po)
-            # algorithm
-        self.trainer = Trainer(
-            args=self.all_args,
-            policy=self.policy,
-        )
-        self.buffer = Buffer(
-            args=self.all_args,
-            num_agents=self.all_args.num_agents,
-            obs_space=self.envs.observation_space[0],
-            share_obs_space=self.share_observation_space,
-            action_space=self.envs.action_space[0],
-            action_shape=self.action_shape,
-        )
-        self.show_reward_list = []
-        print("obs_space", self.envs.observation_space[0])
-        print("share_obs_space", self.share_observation_space)
-        print("action_space", self.envs.action_space[0])
 
     def run(self) -> None:
         t_env = 0  # 環境ステップ数のカウンタ
@@ -74,6 +23,8 @@ class OffPolicyMainRunner(BaseRunner):
             // self.all_args.num_rollout_threads
         )
         for episode in range(episodes):
+            # epsilonの線形減衰
+            self.trainer.policy.update_epsilon(t_env)
             # visualize用にデータを保存するリストを定義
             obs_list, reward_list, action_list = [], [], []
             # エピソード保存用のバッファ
@@ -85,7 +36,7 @@ class OffPolicyMainRunner(BaseRunner):
                 dtype=bool,
             )
             for step in range(self.all_args.episode_length):
-                actions, actions_env = self.collect(obs)
+                actions, actions_env = self.collect(obs, dones)
                 obs, rewards, dones = self.envs.step(actions_env)
                 if step != self.all_args.episode_length - 1:
                     obs_list.append(obs[0])
@@ -108,9 +59,7 @@ class OffPolicyMainRunner(BaseRunner):
                     self.all_args.num_rollout_threads,
                     self.all_args.episode_length + 1,
                     -1,
-                )
-                if self.all_args.share_observation
-                else self.obs_trajectory_buffer[:, :, 0, :],
+                ),
                 obs=self.obs_trajectory_buffer,
                 actions=self.actions_trajectory_buffer,
                 rewards=self.rewards_trajectory_buffer,
@@ -119,12 +68,7 @@ class OffPolicyMainRunner(BaseRunner):
                 avail_actions=self.avail_actions_trajectory_buffer,
             )
             # バッチ数分のデータが溜まったら学習を行う
-            if (
-                self.buffer.can_sample(self.all_args.batch_size)
-                and episode > self.all_args.warmup_episodes
-            ):
-                if episode % self.all_args.train_interval != 0:
-                    continue
+            if self.buffer.can_sample(self.all_args.batch_size):
                 episode_samples = self.buffer.sample(self.all_args.batch_size)
                 self.trainer.train(episode_samples)
 
@@ -191,7 +135,6 @@ class OffPolicyMainRunner(BaseRunner):
         mask: np.ndarray,
         avail_actions: np.ndarray,
     ) -> None:
-        # それぞれのエージェントのバッファにデータを挿入
         self.buffer.insert(
             shared_obs,
             obs,
@@ -203,35 +146,20 @@ class OffPolicyMainRunner(BaseRunner):
         )
 
     @torch.no_grad()
-    def collect(self, obs_np: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """
-        各エージェントの行動を取得
-
-        Args:
-            obs_np: (num_rollout_threads, num_agents, obs_dim)
-
-        Returns:
-            actions_np: (num_rollout_threads, num_agents, 1)
-            actions_env: (num_rollout_threads, num_agents, action_dim)
-        """
+    def collect(
+        self, obs_np: np.ndarray, dones_np: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        # numpy -> torch（最小限の変換のみ）
         obs_t = torch.from_numpy(obs_np).float().to(self.all_args.device)
-
-        # 各エージェントの行動を取得
-        actions = []
-        actions_env = []
-        for agent_id in range(self.all_args.num_agents):
-            action, action_env = self.policy[agent_id].get_action(
-                obs=obs_t[:, agent_id, :],
-                deterministic=self.all_args.deterministic,
-            )
-            actions.append(action)
-            actions_env.append(action_env)
-        # スタック: (num_rollout_threads, num_agents)
-        actions = torch.stack(actions, dim=1)
-        actions_env = torch.stack(actions_env, dim=1)
-        # numpy変換
-        actions = actions.cpu().numpy()
-        actions_env = actions_env.cpu().numpy()
+        dones_t = torch.from_numpy(dones_np).bool().to(self.all_args.device)
+        actions = self.trainer.policy.get_actions(obs_t, dones_t, deterministic=False)
+        # actionsをnumpyに変換
+        actions = actions.cpu().numpy().astype(np.int64)
+        # one-hot化（numpy）
+        actions_env = np.eye(
+            self.action_dim,
+            dtype=np.float32,
+        )[actions.squeeze(-1)]
         return actions, actions_env
 
     def warmup(self):
@@ -239,6 +167,7 @@ class OffPolicyMainRunner(BaseRunner):
         obs = self.envs.reset()
         # 必要なら初期観測をバッファや変数に保存
         self.initial_obs = obs.copy()
+        self.policy.init_hidden(batch_size=self.all_args.num_rollout_threads)
         self.obs_trajectory_buffer = np.zeros(
             (
                 self.all_args.num_rollout_threads,
@@ -270,7 +199,7 @@ class OffPolicyMainRunner(BaseRunner):
                 self.all_args.num_rollout_threads,
                 self.all_args.episode_length,
                 self.all_args.num_agents,
-                self.action_shape,
+                1,
             ),
             dtype=np.int64,
         )

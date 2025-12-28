@@ -55,8 +55,12 @@ class BaseRunner(object):
                 if self.all_args.use_centralized_V
                 else self.envs.observation_space[0]
             )  # エージェント0のshared観測
-            from algorithms.r_mappo.algorithm.RMAPPOPolicy import RMAPPOPolicy as Policy
-            from algorithms.r_mappo.rmappo_trainer import RMAPPOTrainer as Trainer
+            from algorithms.r_mappo.algorithm.RMAPPOPolicy import (
+                RMAPPOPolicy as Policy,
+            )
+            from algorithms.r_mappo.rmappo_trainer import (
+                RMAPPOTrainer as Trainer,
+            )
             from utils.shared_buffer import ReplayBuffer as ReplayBuffer
 
             self.policy = Policy(
@@ -68,6 +72,48 @@ class BaseRunner(object):
             self.trainer = Trainer(
                 args=self.all_args,
                 policy=self.policy,
+            )
+        elif (
+            self.all_args.algorithm_name == "QMIX"
+            or self.all_args.algorithm_name == "VDN"
+        ):
+            share_obs_space = self.envs.share_observation_space[
+                0
+            ]  # QMIX/VDNではshared_obs_spaceを必ず使う
+            from algorithms.valuedecomposition.algorithm.QPolicy import (
+                QPolicy as Policy,
+            )
+            from algorithms.valuedecomposition.QTrainer import (
+                QTrainer as Trainer,
+            )
+            from utils.offpolicy_buffer import (
+                EpisodeReplayBuffer as ReplayBuffer,
+            )
+
+            if self.all_args.algorithm_name == "QMIX":
+                from algorithms.valuedecomposition.algorithm.mixing_nn import (
+                    QMixer as Mixer,
+                )
+
+                self.mixer = Mixer(
+                    self.all_args,
+                    obs_space,
+                    share_obs_space,
+                    action_space,
+                )
+            elif self.all_args.algorithm_name == "VDN":
+                self.mixer = None  # VDNではミキサーは使用しない
+
+            self.policy = Policy(
+                args=self.all_args,
+                obs_space=obs_space,
+                share_obs_space=share_obs_space,
+                action_space=action_space,
+            )
+            self.trainer = Trainer(
+                args=self.all_args,
+                policy=self.policy,
+                mixer=self.mixer,
             )
 
         # buffer

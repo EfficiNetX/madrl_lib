@@ -30,6 +30,8 @@ class RNNLayer(nn.Module):
                 else:
                     nn.init.xavier_uniform_(param)
         self.norm = nn.LayerNorm(outputs_dim)
+        # cuDNNのメモリ効率化のためパラメータをフラット化
+        self.rnn.flatten_parameters()
 
     def forward(self, x, hxs, masks):
         if x.size(0) == hxs.size(0):

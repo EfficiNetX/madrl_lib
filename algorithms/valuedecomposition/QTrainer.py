@@ -11,13 +11,12 @@ class QTrainer:
         self.logger = logger
         self.target_policy = copy.deepcopy(policy)
         self.target_mixer = copy.deepcopy(mixer)
+        self.target_policy.agent_q_network.rnn.rnn.flatten_parameters()
 
         self.last_target_update_episode = 0
         self.target_network_update_interval = args.target_network_update_interval
         self.log_interval = args.log_interval
         self.learned_steps = 0
-        self.loss_list = []
-        self.reward_list = []
 
     def train(self, episode_batch: dict) -> None:
         """
@@ -25,9 +24,10 @@ class QTrainer:
             - 'share_obs': (batch_size, episode_length + 1, share_obs_dim)
             - 'obs': (batch_size, episode_length + 1, n_agents, obs_dim)
             - 'actions': (batch_size, episode_length, n_agents, 1)
-            - 'rewards': (batch_size, episode_length, n_agents)
+            - 'rewards': (batch_size, episode_length, n_agents, 1)
             - 'dones': (batch_size, episode_length, n_agents)
-            - 'mask': (batch_size, episode_length) # パディングされていない部分を示すマスク 1ならば有効 0ならば無効
+            - 'avail_actions': (batch_size, episode_length + 1, n_agents, action_dim)
+            - 'mask': (batch_size, episode_length) # 1ならばそのデータは無効（パディング）
         """
         self.learned_steps += 1
         batch = {
@@ -63,22 +63,30 @@ class QTrainer:
             target_max_qvals, batch["share_obs"][:, 1:], self.target_mixer
         )
 
+        # rewards: (batch, ep_len, agents, 1) -> sum -> (batch, ep_len, 1)
         rewards = batch["rewards"].sum(dim=2)
-        not_all_done = (~batch["dones"]).any(dim=2, keepdim=True).float()
+        not_all_done = (~batch["dones"]).any(dim=2, keepdim=True).float()  # (batch, ep_len, 1)
+        
         target = rewards + self.args.gamma * mixed_target_max_qvals * not_all_done
         td_errors = mixed_chosen_action_qvals - target.detach()
         loss = (td_errors**2 * (~batch["mask"]).unsqueeze(-1)).sum() / (
             ~batch["mask"]
         ).sum()
-        # self._log_training_progress(
-        #     loss.item(), rewards.sum().item() / rewards.shape[0]
-        # )
 
+        # 勾配をリセット
         self.policy.optimizer.zero_grad()
+        if self.mixer is not None:
+            self.mixer.optimizer.zero_grad()
+
         loss.backward()
+
         if self.args.use_max_grad_norm:
             self._clip_gradients()
+
+        # 各オプティマイザでパラメータ更新
         self.policy.optimizer.step()
+        if self.mixer is not None:
+            self.mixer.optimizer.step()
         if self._should_update_targets():
             self._update_targets()
 
@@ -86,13 +94,15 @@ class QTrainer:
         self, network: torch.nn.Module, obs: torch.Tensor
     ) -> torch.Tensor:
         """
+        各エージェントの各行動ごとのQ値を計算する
+        network: Target Network or Policy Networkのどちらか
         obs: (batch_size, episode_length, n_agents, obs_dim)
         Returns: (batch_size, episode_length, n_agents, action_space)
         """
         total_q_values = []
-        network.init_hidden(obs.shape[0])
+        network.agent_q_network.init_hidden(obs.shape[0])
         for t in range(obs.shape[1]):
-            q_values = network.forward(obs[:, t], None)
+            q_values = network.agent_q_network.forward(obs[:, t], None)
             total_q_values.append(q_values)
         total_q_values = torch.stack(total_q_values, dim=1)
         return total_q_values
@@ -107,18 +117,15 @@ class QTrainer:
 
     def _update_targets(self) -> None:
         """ターゲットネットワークの更新を実行"""
-        print("Updated target network")
         self.last_target_update_episode = self.learned_steps
-        self.__update_targets()
-
-    def __update_targets(self) -> None:
         self.target_policy.agent_q_network.load_state_dict(
             self.policy.agent_q_network.state_dict()
         )
+        # load_state_dict後にRNNの重みをフラット化
+        self.target_policy.agent_q_network.rnn.rnn.flatten_parameters()
         if self.mixer is not None:
             self.target_mixer.load_state_dict(self.mixer.state_dict())
-        if self.logger is not None:
-            self.logger.console_logger.info("Updated target network")
+        print("Updated target network")
 
     def _clip_gradients(self) -> None:
         """QネットワークとMixerの勾配クリッピング処理"""
@@ -143,24 +150,10 @@ class QTrainer:
         share_obs: (batch_size, episode_length, share_obs_dim)
         mixer: mixer module or None
         Returns: (batch_size, episode_length, 1)
+        VDN(mixer=None)の場合は、各エージェントのQ値を合計する
+        QMIX(mixer=QMix)の場合は、各エージェントのQ値を合計して、それをMixerに入力する
         """
         if mixer is not None:
             return mixer(agent_qvals, share_obs)
         else:
             return agent_qvals.sum(dim=2, keepdim=True)
-
-    def _log_training_progress(self, loss: float, avg_reward: float) -> None:
-        """
-        ロスと報酬のログ出力・ファイル保存を分離
-        """
-        self.loss_list.append(loss)
-        self.reward_list.append(avg_reward)
-        if self.learned_steps % self.log_interval == 0:
-            print(f"TD Loss: {loss}")
-        if self.learned_steps % 50 == 0:
-            avg_loss = sum(self.loss_list) / len(self.loss_list)
-            avg_reward = sum(self.reward_list) / len(self.reward_list)
-            with open("loss_log.txt", "a") as f:
-                f.write(f"{self.learned_steps},{avg_loss},{avg_reward}\n")
-            self.loss_list = []
-            self.reward_list = []

@@ -22,6 +22,8 @@ class OffPolicyMainRunner(BaseRunner):
             // self.all_args.episode_length
             // self.all_args.num_rollout_threads
         )
+
+        
         for episode in range(episodes):
             # epsilonの線形減衰
             self.trainer.policy.update_epsilon(t_env)
@@ -149,7 +151,6 @@ class OffPolicyMainRunner(BaseRunner):
     def collect(
         self, obs_np: np.ndarray, dones_np: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray]:
-        # numpy -> torch（最小限の変換のみ）
         obs_t = torch.from_numpy(obs_np).float().to(self.all_args.device)
         dones_t = torch.from_numpy(dones_np).bool().to(self.all_args.device)
         actions = self.trainer.policy.get_actions(obs_t, dones_t, deterministic=False)

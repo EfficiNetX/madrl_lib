@@ -45,6 +45,10 @@ def main(args):
     if args.algorithm_name == "HASAC":
         from runner.separated.offpolicy_main_runner import OffPolicyMainRunner as Runner
 
+    # QMIXを動かすためのコード
+    if args.algorithm_name == "QMIX" or args.algorithm_name == "VDN":
+        from runner.shared.offpolicy_main_runner import OffPolicyMainRunner as Runner
+
     runner = Runner(config)
     runner.run()
 

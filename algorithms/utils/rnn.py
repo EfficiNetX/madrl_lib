@@ -1,9 +1,6 @@
 import torch
 import torch.nn as nn
 
-"""RNN modules."""
-
-
 class RNNLayer(nn.Module):
     def __init__(
         self,
@@ -30,6 +27,8 @@ class RNNLayer(nn.Module):
                 else:
                     nn.init.xavier_uniform_(param)
         self.norm = nn.LayerNorm(outputs_dim)
+        # RNNの重み行列を連続した領域に保存することで高速化可能
+        self.rnn.flatten_parameters()
 
     def forward(self, x, hxs, masks):
         if x.size(0) == hxs.size(0):

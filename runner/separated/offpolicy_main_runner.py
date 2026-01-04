@@ -17,9 +17,7 @@ class OffPolicyMainRunner(BaseRunner):
             from algorithms.hasac.algorithm.hasac_policy import HASACPolicy as Policy
 
             if self.all_args.use_centralized_V:
-                from algorithms.hasac.hasac_centralized_trainer import (
-                    CentralizedSACTrainer as Trainer,
-                )
+                from algorithms.hasac.hasac_centralized_trainer import CentralizedSACTrainer as Trainer
             else:
                 from algorithms.hasac.hasac_independent_trainer import (
                     IndependentSACTrainer as Trainer,
@@ -28,11 +26,7 @@ class OffPolicyMainRunner(BaseRunner):
         self.policy = []
         self.obs_dim = len(self.envs.observation_space[0])
         # すべてのエージェントで同じ観測・行動次元を仮定
-        self.action_shape = (
-            1
-            if self.all_args.action_type == "discrete"
-            else len(self.envs.action_space[0])
-        )
+        self.action_shape = 1 if self.all_args.action_type == "discrete" else len(self.envs.action_space[0])
         self.action_dim = (
             len(self.envs.action_space[0])
             if self.all_args.action_type == "discrete"
@@ -68,11 +62,7 @@ class OffPolicyMainRunner(BaseRunner):
     def run(self) -> None:
         t_env = 0  # 環境ステップ数のカウンタ
         start = time.time()
-        episodes = (
-            int(self.all_args.num_env_steps)
-            // self.all_args.episode_length
-            // self.all_args.num_rollout_threads
-        )
+        episodes = int(self.all_args.num_env_steps) // self.all_args.episode_length // self.all_args.num_rollout_threads
         for episode in range(episodes):
             # visualize用にデータを保存するリストを定義
             obs_list, reward_list, action_list = [], [], []
@@ -119,25 +109,17 @@ class OffPolicyMainRunner(BaseRunner):
                 avail_actions=self.avail_actions_trajectory_buffer,
             )
             # バッチ数分のデータが溜まったら学習を行う
-            if (
-                self.buffer.can_sample(self.all_args.batch_size)
-                and episode > self.all_args.warmup_episodes
-            ):
+            if self.buffer.can_sample(self.all_args.batch_size) and episode > self.all_args.warmup_episodes:
                 if episode % self.all_args.train_interval != 0:
                     continue
                 episode_samples = self.buffer.sample(self.all_args.batch_size)
                 self.trainer.train(episode_samples)
 
-            total_num_steps = (
-                (episode + 1)
-                * self.all_args.episode_length
-                * self.all_args.num_rollout_threads
-            )
+            total_num_steps = (episode + 1) * self.all_args.episode_length * self.all_args.num_rollout_threads
 
             if episode % self.all_args.log_interval == 0:
                 print(
-                    "Scenario {} Algo {} updates {}/{} episodes,"
-                    " total num timesteps {}/{}, FPS {}.".format(
+                    "Scenario {} Algo {} updates {}/{} episodes, total num timesteps {}/{}, FPS {}.".format(
                         self.all_args.user_name,
                         self.all_args.algorithm_name,
                         episode,
@@ -152,8 +134,7 @@ class OffPolicyMainRunner(BaseRunner):
                     print(
                         "agent {}: average episode rewards is {}".format(
                             agent_id,
-                            np.mean(self.rewards_trajectory_buffer[:, :, agent_id, :])
-                            * self.all_args.episode_length,
+                            np.mean(self.rewards_trajectory_buffer[:, :, agent_id, :]) * self.all_args.episode_length,
                         )
                     )
                 self.visualizer(
@@ -289,6 +270,4 @@ class OffPolicyMainRunner(BaseRunner):
         )
         self.mask_trajectory_buffer[:, 0] = False  # エピソード開始直後は全環境未終了
         self.obs_trajectory_buffer[:, 0] = self.initial_obs  # numpy
-        self.avail_actions_trajectory_buffer[:, 0] = (
-            self.envs.get_avail_actions().copy()
-        )
+        self.avail_actions_trajectory_buffer[:, 0] = self.envs.get_avail_actions().copy()

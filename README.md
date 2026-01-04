@@ -52,7 +52,7 @@ uv run main.py --algorithm_name MAT --num_rollout_threads 32 --episode_length 50
 - [ ] [MADDPG (NeurIPS2017)](https://proceedings.neurips.cc/paper_files/paper/2017/file/68a9750337a418a86fe06c1991a1d64c-Paper.pdf)
 - [x] [IPPO (2020)](https://arxiv.org/abs/2011.09533)
 - [x] [MAPPO (NeurIPS2022)](https://papers.neurips.cc/paper_files/paper/2022/file/9c1535a02f0ce079433344e14d910597-Paper-Datasets_and_Benchmarks.pdf)
-- [ ] [HASAC (ICLR2024)](https://openreview.net/pdf?id=tmqOhBC4a5)
+- [x] [HASAC (ICLR2024)](https://openreview.net/pdf?id=tmqOhBC4a5)
 - [ ] [ISAC (ICML2018)](https://proceedings.mlr.press/v80/haarnoja18b/haarnoja18b.pdf)
 - [x] [HAPPO (ICLR2022)](https://arxiv.org/pdf/2109.11251)
 - [ ] [HATRPO (ICLR2022)](https://arxiv.org/pdf/2109.11251)

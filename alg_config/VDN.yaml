@@ -33,12 +33,12 @@ arguments:
 
   layer_N:
     type: int
-    default: 1
+    default: 3
     help: "MLPBaseの追加層数（入力層の後に続く隠れ層の数）"
 
   recurrent_N:
     type: int
-    default: 1
+    default: 5
     help: "RNNLayerのGRU層の数"
 
   use_ReLU:
@@ -49,11 +49,11 @@ arguments:
   # --- オプティマイザ & 学習率 ---
   lr:
     type: float
-    default: 5e-5
+    default: 5e-4
     help: "学習率 (Q-Network)"
   opti_eps:
     type: float
-    default: 1e-5
+    default: 5e-4
     help: "RMSprop optimizer epsilon"
   weight_decay:
     type: float
@@ -69,15 +69,15 @@ arguments:
   # --- リプレイバッファ & バッチ ---
   buffer_size:
     type: int
-    default: 10000
+    default: 2048
     help: "リプレイバッファの最大エピソード数"
   batch_size:
     type: int
-    default: 512
+    default: 256
     help: "学習時にサンプリングするエピソード数"
   target_network_update_interval:
     type: int
-    default: 2000
+    default: 100
     help: "ターゲットネットワークの更新間隔（学習回数）"
 
   # --- ε-greedy 探索 ---
@@ -110,12 +110,12 @@ arguments:
   
   use_max_grad_norm:
     type: bool
-    default: false
+    default: true
     help: "勾配クリッピングを有効にする"
 
   max_grad_norm:
     type: float
-    default: 10.0
+    default: 1.0
     help: "勾配クリッピングの最大値"
 
   gain:

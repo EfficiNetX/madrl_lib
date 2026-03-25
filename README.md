@@ -14,7 +14,7 @@
 1. ```uv {仮想環境名（なんでもよい、venvなど）}```として仮想環境を作り, その中に入る
 2. ```uv sync```で必要なパッケージをインストール
 3. 使用するアルゴリズムのハイパーパラメータを調整。つまり、```config/{使用するアルゴリズム名}.yaml```のdefault部分を変更してください。
-4. uv run main.py --algorithm_name "使用するアルゴリズム名"で学習を実行します．--algorithm_name には MAT，RMAPPO，IPPO，HAPPO，QMIX，VDN のいずれかを指定できます。
+4. ```uv run main.py --algorithm_name "使用するアルゴリズム名"```で学習を実行します．--algorithm_name には MAT，RMAPPO，IPPO，HAPPO，QMIX，VDN のいずれかを指定できます。
 
    **▼ コマンド入力例**
    ```bash
